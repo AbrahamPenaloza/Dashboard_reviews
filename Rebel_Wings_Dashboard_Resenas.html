@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rebel Wings - Dashboard de Reseñas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: #f9f9f9;
+    color: #2b2d42;
+    line-height: 1.6;
+  }
+  .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+  .header {
+    background: linear-gradient(135deg, #e63946 0%, #ff8c42 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .header h1 { font-size: 28px; margin-bottom: 5px; }
+  .header p { opacity: 0.95; font-size: 14px; }
+  
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .control-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .control-group label {
+    font-weight: 500;
+    font-size: 14px;
+    color: #2b2d42;
+  }
+  select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    background: white;
+    color: #2b2d42;
+  }
+  select:hover { border-color: #e63946; }
+  
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 30px;
+  }
+  .kpi-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s;
+  }
+  .kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .kpi-label {
+    font-size: 13px;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #e63946;
+    margin-bottom: 4px;
+  }
+  .kpi-change {
+    font-size: 12px;
+    color: #666;
+  }
+  
+  .section {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .section h2 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: #2b2d42;
+    border-bottom: 2px solid #e63946;
+    padding-bottom: 12px;
+  }
+  
+  .top-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .list-item:last-child { border-bottom: none; }
+  .list-rank { font-weight: 700; color: #e63946; margin-right: 12px; width: 20px; }
+  .list-name { flex: 1; }
+  .list-value { font-weight: 600; color: #2b2d42; }
+  
+  .chart-container {
+    position: relative;
+    height: 350px;
+    margin-top: 20px;
+  }
+  
+  .placeholder {
+    background: #f5f5f5;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+  }
+  
+  .loading { text-align: center; padding: 40px; color: #666; }
+  .error { background: #fee; color: #c00; padding: 16px; border-radius: 6px; margin: 20px 0; }
+  
+  .review-card {
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .review-author { font-weight: 600; font-size: 14px; }
+  .review-stars { color: #ff8c42; font-size: 14px; }
+  .review-meta {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .review-text { font-size: 14px; color: #2b2d42; margin-bottom: 8px; }
+  .review-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #f0f0f0;
+    color: #666;
+  }
+  .review-tag.negativo { background: #fee; color: #c00; }
+  .review-tag.positivo { background: #e8f5e9; color: #2e7d32; }
+  .review-tag.neutral { background: #fff3e0; color: #e65100; }
+  
+  #comparisonTable td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+  #comparisonTable tbody tr:hover { background: #fafafa; }
+  .trend-up { color: #2e7d32; font-weight: 600; }
+  .trend-down { color: #e63946; font-weight: 600; }
+  .trend-flat { color: #999; }
+  
+  @media (max-width: 768px) {
+    .header { padding: 20px; }
+    .header h1 { font-size: 22px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .top-list { grid-template-columns: 1fr; }
+    .controls { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🔥 Rebel Wings - Dashboard de Reseñas</h1>
+    <p>Monitoreo de salud de marca • Actualizado en tiempo real desde Google Business Profile</p>
+  </div>
+  
+  <div class="controls">
+    <div class="control-group">
+      <label for="period">Período:</label>
+      <select id="period">
+        <option value="all">Todo el tiempo</option>
+        <option value="year">Últimos 365 días</option>
+        <option value="quarter">Últimos 90 días</option>
+        <option value="month" selected>Últimos 30 días</option>
+      </select>
+    </div>
+  </div>
+  
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Rating Promedio</div>
+      <div class="kpi-value" id="avgRating">--</div>
+      <div class="kpi-change">De todas las reseñas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Reseñas</div>
+      <div class="kpi-value" id="totalReviews">--</div>
+      <div class="kpi-change">En el período</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">% Negativas (1-2⭐)</div>
+      <div class="kpi-value" id="negativePercent">--</div>
+      <div class="kpi-change">A monitorear</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Sucursales</div>
+      <div class="kpi-value" id="locationCount">--</div>
+      <div class="kpi-change">Con reseñas activas</div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>🏆 Mejores vs Peores Sucursales</h2>
+    <div class="top-list">
+      <div>
+        <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">✨ Top 5 Mejores</h3>
+        <div id="topBest"></div>
+      </div>
+      <div>
+        <h3 style="font-size: 14px; color: #e63946; margin-bottom: 12px;">⚠️ Top 5 Peores</h3>
+        <div id="topWorst"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>📊 Quejas Negativas por Tema</h2>
+    <div class="controls" style="margin-bottom: 20px;">
+      <div class="control-group">
+        <label for="themeLocationFilter">Sucursal:</label>
+        <select id="themeLocationFilter">
+          <option value="">Todas las sucursales</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="themeFilter">Filtrar por tema:</label>
+        <select id="themeFilter">
+          <option value="">Todos los temas</option>
+        </select>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="complaintsChart" role="img" aria-label="Cantidad de quejas negativas por tema"></canvas>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>📉 Comparativo de Reseñas Negativas por Sucursal</h2>
+    <p style="font-size: 13px; color: #999; margin-bottom: 16px;">% de reseñas de 1-2 estrellas sobre el total recibido en cada ventana de tiempo. La flecha compara los últimos 30 días contra los 30 días previos.</p>
+    <div style="overflow-x: auto;">
+      <table id="comparisonTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #e63946;">
+            <th style="text-align: left; padding: 8px; cursor: pointer;" data-sort="name">Sucursal</th>
+            <th style="text-align: right; padding: 8px; cursor: pointer;" data-sort="total30">30 días<br><span style="font-weight:400;">(total / % neg)</span></th>
+            <th style="text-align: right; padding: 8px; cursor: pointer;" data-sort="total90">90 días<br><span style="font-weight:400;">(total / % neg)</span></th>
+            <th style="text-align: right; padding: 8px; cursor: pointer;" data-sort="total365">365 días<br><span style="font-weight:400;">(total / % neg)</span></th>
+            <th style="text-align: center; padding: 8px;">Tendencia</th>
+          </tr>
+        </thead>
+        <tbody id="comparisonTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>👥 Rendimiento por Zona/Gerente</h2>
+    <div class="chart-container">
+      <canvas id="managerChart" role="img" aria-label="Porcentaje de reseñas negativas por zona o gerente regional"></canvas>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>📝 Reseñas Individuales</h2>
+    <div class="controls" style="margin-bottom: 20px;">
+      <div class="control-group">
+        <label for="reviewLocationFilter">Sucursal:</label>
+        <select id="reviewLocationFilter">
+          <option value="">Selecciona una sucursal</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="reviewRatingFilter">Calificación:</label>
+        <select id="reviewRatingFilter">
+          <option value="">Todas</option>
+          <option value="1">1 estrella</option>
+          <option value="2">2 estrellas</option>
+          <option value="3">3 estrellas</option>
+          <option value="4">4 estrellas</option>
+          <option value="5">5 estrellas</option>
+        </select>
+      </div>
+    </div>
+    <div id="reviewsList">
+      <div class="placeholder">Selecciona una sucursal para ver sus reseñas.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SHEET_ID = '18PDh6eT4qGE9Sp4dm9bLzBysmO673LfJ3Tm6x14D2KA';
+  const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Métricas')}`;
+  
+  let allData = [];
+  let reviewsData = [];
+  let themesChart = null;
+  let managerChart = null;
+  
+  function parseFecha(value) {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    const str = String(value).trim();
+    const gvizMatch = str.match(/^Date\((\d+),(\d+),(\d+)/);
+    if (gvizMatch) {
+      const [, y, m, d] = gvizMatch;
+      return new Date(Number(y), Number(m), Number(d));
+    }
+    const ddmmyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (ddmmyyyy) {
+      const [, d, m, y] = ddmmyyyy;
+      return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    const parsed = new Date(str);
+    return isNaN(parsed) ? null : parsed;
+  }
+  
+  async function loadData() {
+    try {
+      const response = await fetch(SHEET_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: No se pudo acceder a la Sheets. Verifica que sea pública.`);
+      }
+      const text = await response.text();
+      if (!text.includes('google.visualization.Query.setResponse')) {
+        throw new Error('La Sheets no devolvió datos válidos. Verifica el nombre de la pestaña "Métricas".');
+      }
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      
+      const cols = json.table.cols.map(c => c.label);
+      const rows = json.table.rows.map(r => {
+        const row = {};
+        r.c.forEach((cell, i) => {
+          row[cols[i]] = cell ? cell.v : null;
+        });
+        return row;
+      });
+      
+      allData = rows;
+      await loadReviewsData();
+      updateDashboard();
+      populateReviewLocationFilter();
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+      document.body.innerHTML += `<div class="error">Error: ${error.message}</div>`;
+    }
+  }
+  
+  async function loadReviewsData() {
+    try {
+      const response = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Reseñas')}`);
+      const text = await response.text();
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      
+      const cols = json.table.cols.map(c => c.label);
+      reviewsData = json.table.rows.map(r => {
+        const row = {};
+        r.c.forEach((cell, i) => {
+          row[cols[i]] = cell ? cell.v : null;
+        });
+        return row;
+      });
+    } catch (error) {
+      console.error('Error cargando reseñas:', error);
+    }
+  }
+  
+  function getStartDate() {
+    const period = document.getElementById('period').value;
+    const now = new Date();
+    if (period === 'month') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    if (period === 'quarter') return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    if (period === 'year') return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    return new Date('2015-01-01');
+  }
+  
+  function getFilteredData() {
+    const startDate = getStartDate();
+    return allData.filter(row => {
+      const date = new Date(row.Año, row.Mes - 1, 1);
+      return date >= startDate;
+    });
+  }
+  
+  function getFilteredReviews() {
+    const startDate = getStartDate();
+    return reviewsData.filter(r => {
+      const date = parseFecha(r.Fecha);
+      return date && date >= startDate;
+    });
+  }
+  
+  function updateDashboard() {
+    const filtered = getFilteredData();
+    const filteredReviews = getFilteredReviews();
+    
+    const avgRating = filteredReviews.length > 0 
+      ? (filteredReviews.reduce((sum, r) => sum + (r.Calificación || 0), 0) / filteredReviews.length).toFixed(2)
+      : '--';
+    
+    const totalReviews = filteredReviews.length;
+    
+    const negativeCount = filtered.reduce((sum, r) => sum + (r['Cantidad Neg (1-2)'] || 0), 0);
+    const totalCount = filtered.reduce((sum, r) => sum + (r['Total Reseñas'] || 0), 0);
+    const negativePercent = totalCount > 0 ? ((negativeCount / totalCount) * 100).toFixed(1) : '--';
+    
+    const locations = new Set(filtered.map(r => r.Sucursal)).size;
+    
+    document.getElementById('avgRating').textContent = avgRating;
+    document.getElementById('totalReviews').textContent = totalReviews;
+    document.getElementById('negativePercent').textContent = negativePercent + '%';
+    document.getElementById('locationCount').textContent = locations;
+    
+    updateTopLocations(filtered);
+    updateThemesChart(filtered);
+    updateThemeFilter(filtered);
+    updateManagerChart(filtered);
+    updateComparisonTable();
+  }
+  
+  function updateManagerChart(data) {
+    const byZone = {};
+    data.forEach(row => {
+      const zone = row['Zona/Gerente'] || 'Sin asignar';
+      if (!byZone[zone]) byZone[zone] = { neg: 0, total: 0 };
+      byZone[zone].neg += row['Cantidad Neg (1-2)'] || 0;
+      byZone[zone].total += row['Total Reseñas'] || 0;
+    });
+    
+    const sorted = Object.entries(byZone)
+      .map(([name, d]) => ({
+        name,
+        percent: d.total > 0 ? (d.neg / d.total) * 100 : 0
+      }))
+      .sort((a, b) => b.percent - a.percent);
+    
+    const ctx = document.getElementById('managerChart');
+    if (managerChart) managerChart.destroy();
+    
+    managerChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => d.name),
+        datasets: [{
+          label: '% Reseñas negativas',
+          data: sorted.map(d => d.percent.toFixed(1)),
+          backgroundColor: '#2b2d42',
+          borderColor: '#e63946',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: v => v + '%' } }
+        }
+      }
+    });
+  }
+  
+  function calcStats(reviews, startDate, endDate) {
+    const inRange = reviews.filter(r => {
+      const date = parseFecha(r.Fecha);
+      return date && date >= startDate && date < endDate;
+    });
+    const total = inRange.length;
+    const neg = inRange.filter(r => (r['Calificación'] || 0) <= 2).length;
+    const percent = total > 0 ? (neg / total) * 100 : null;
+    return { total, neg, percent };
+  }
+  
+  function updateComparisonTable() {
+    const now = new Date();
+    const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const d60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const d365 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const future = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    
+    const locations = [...new Set(reviewsData.map(r => r['Nombre de sucursal']).filter(Boolean))].sort();
+    
+    const rows = locations.map(name => {
+      const reviews = reviewsData.filter(r => r['Nombre de sucursal'] === name);
+      const s30 = calcStats(reviews, d30, future);
+      const s90 = calcStats(reviews, d90, future);
+      const s365 = calcStats(reviews, d365, future);
+      const prev30 = calcStats(reviews, d60, d30);
+      
+      let trend = 'flat';
+      if (s30.percent !== null && prev30.percent !== null) {
+        if (s30.percent < prev30.percent - 2) trend = 'up';
+        else if (s30.percent > prev30.percent + 2) trend = 'down';
+      }
+      
+      return { name, s30, s90, s365, trend, total30: s30.total, total90: s90.total, total365: s365.total };
+    });
+    
+    rows.sort((a, b) => {
+      const key = comparisonSort.key;
+      let valA = key === 'name' ? a.name : a[key];
+      let valB = key === 'name' ? b.name : b[key];
+      if (typeof valA === 'string') return comparisonSort.dir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      return comparisonSort.dir === 'asc' ? valA - valB : valB - valA;
+    });
+    
+    renderComparisonTable(rows);
+  }
+  
+  function renderComparisonTable(rows) {
+    const fmt = (s) => s.total === 0 ? '<span style="color:#ccc;">Sin datos</span>' : `${s.total} / <strong>${s.percent.toFixed(0)}%</strong>`;
+    const trendIcon = { up: '<span class="trend-up">▲ Mejorando</span>', down: '<span class="trend-down">▼ Empeorando</span>', flat: '<span class="trend-flat">— Estable</span>' };
+    
+    document.getElementById('comparisonTableBody').innerHTML = rows.map(r => `
+      <tr>
+        <td style="text-align:left; font-weight:500;">${r.name}</td>
+        <td style="text-align:right;">${fmt(r.s30)}</td>
+        <td style="text-align:right;">${fmt(r.s90)}</td>
+        <td style="text-align:right;">${fmt(r.s365)}</td>
+        <td style="text-align:center;">${trendIcon[r.trend]}</td>
+      </tr>
+    `).join('');
+  }
+  
+  let comparisonSort = { key: 'total30', dir: 'desc' };
+  document.querySelectorAll('#comparisonTable th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      comparisonSort.dir = (comparisonSort.key === key && comparisonSort.dir === 'desc') ? 'asc' : 'desc';
+      comparisonSort.key = key;
+      updateComparisonTable();
+    });
+  });
+  
+  function updateTopLocations(data) {
+    const byLocation = {};
+    data.forEach(row => {
+      if (!byLocation[row.Sucursal]) {
+        byLocation[row.Sucursal] = { neg: 0, total: 0 };
+      }
+      byLocation[row.Sucursal].neg += row['Cantidad Neg (1-2)'] || 0;
+      byLocation[row.Sucursal].total += row['Total Reseñas'] || 0;
+    });
+    
+    const sorted = Object.entries(byLocation)
+      .map(([name, data]) => ({
+        name,
+        percent: data.total > 0 ? ((data.neg / data.total) * 100) : 0
+      }))
+      .sort((a, b) => a.percent - b.percent);
+    
+    const best = sorted.slice(0, 5);
+    const worst = sorted.slice(-5).reverse();
+    
+    document.getElementById('topBest').innerHTML = best.map((d, i) => `
+      <div class="list-item">
+        <span><span class="list-rank">${i + 1}</span><span class="list-name">${d.name}</span></span>
+        <span class="list-value">${d.percent.toFixed(1)}%</span>
+      </div>
+    `).join('');
+    
+    document.getElementById('topWorst').innerHTML = worst.map((d, i) => `
+      <div class="list-item">
+        <span><span class="list-rank">${i + 1}</span><span class="list-name">${d.name}</span></span>
+        <span class="list-value" style="color: #e63946;">${d.percent.toFixed(1)}%</span>
+      </div>
+    `).join('');
+  }
+  
+  function updateThemeFilter(data) {
+    const themes = [...new Set(data.map(r => r.Tema).filter(Boolean))].sort();
+    const select = document.getElementById('themeFilter');
+    const current = select.value;
+    select.innerHTML = '<option value="">Todos los temas</option>' + 
+      themes.map(t => `<option value="${t}">${t}</option>`).join('');
+    select.value = current;
+    
+    const locations = [...new Set(data.map(r => r.Sucursal).filter(Boolean))].sort();
+    const locSelect = document.getElementById('themeLocationFilter');
+    const currentLoc = locSelect.value;
+    locSelect.innerHTML = '<option value="">Todas las sucursales</option>' +
+      locations.map(l => `<option value="${l}">${l}</option>`).join('');
+    locSelect.value = currentLoc;
+  }
+  
+  function updateThemesChart(data) {
+    const selectedTheme = document.getElementById('themeFilter').value;
+    const selectedLocation = document.getElementById('themeLocationFilter').value;
+    let filtered = selectedTheme ? data.filter(r => r.Tema === selectedTheme) : data;
+    filtered = selectedLocation ? filtered.filter(r => r.Sucursal === selectedLocation) : filtered;
+    
+    const byTheme = {};
+    filtered.forEach(row => {
+      const theme = row.Tema || 'Sin categoría';
+      byTheme[theme] = (byTheme[theme] || 0) + (row['Cantidad Neg (1-2)'] || 0);
+    });
+    
+    const sorted = Object.entries(byTheme).sort((a, b) => b[1] - a[1]);
+    
+    const ctx = document.getElementById('complaintsChart');
+    if (themesChart) themesChart.destroy();
+    
+    themesChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => d[0]),
+        datasets: [{
+          label: 'Quejas (1-2 estrellas)',
+          data: sorted.map(d => d[1]),
+          backgroundColor: '#e63946',
+          borderColor: '#ff8c42',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true }
+        }
+      }
+    });
+  }
+  
+  document.getElementById('period').addEventListener('change', updateDashboard);
+  document.getElementById('themeFilter').addEventListener('change', () => {
+    const filtered = getFilteredData();
+    updateThemesChart(filtered);
+  });
+  document.getElementById('themeLocationFilter').addEventListener('change', () => {
+    const filtered = getFilteredData();
+    updateThemesChart(filtered);
+  });
+  
+  function populateReviewLocationFilter() {
+    const locations = [...new Set(reviewsData.map(r => r['Nombre de sucursal']).filter(Boolean))].sort();
+    const select = document.getElementById('reviewLocationFilter');
+    select.innerHTML = '<option value="">Selecciona una sucursal</option>' +
+      locations.map(l => `<option value="${l}">${l}</option>`).join('');
+  }
+  
+  function renderReviews() {
+    const location = document.getElementById('reviewLocationFilter').value;
+    const rating = document.getElementById('reviewRatingFilter').value;
+    const container = document.getElementById('reviewsList');
+    
+    if (!location) {
+      container.innerHTML = '<div class="placeholder">Selecciona una sucursal para ver sus reseñas.</div>';
+      return;
+    }
+    
+    let filtered = reviewsData.filter(r => r['Nombre de sucursal'] === location);
+    if (rating) filtered = filtered.filter(r => String(r['Calificación']) === rating);
+    
+    filtered.sort((a, b) => (parseFecha(b.Fecha) || 0) - (parseFecha(a.Fecha) || 0));
+    
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="placeholder">No hay reseñas para este filtro.</div>';
+      return;
+    }
+    
+    container.innerHTML = filtered.slice(0, 50).map(r => {
+      const stars = '★'.repeat(r['Calificación'] || 0) + '☆'.repeat(5 - (r['Calificación'] || 0));
+      const sentimiento = (r.Sentimiento || '').toLowerCase();
+      const fechaObj = parseFecha(r.Fecha);
+      const fecha = fechaObj ? fechaObj.toLocaleDateString('es-MX') : '';
+      const texto = r['Texto de la reseña'] || '(Sin comentario escrito)';
+      return `
+        <div class="review-card">
+          <div class="review-header">
+            <span class="review-author">${r.Autor || 'Anónimo'}</span>
+            <span class="review-stars">${stars}</span>
+          </div>
+          <div class="review-meta">
+            <span>${fecha}</span>
+            <span class="review-tag ${sentimiento}">${r.Sentimiento || ''}</span>
+            <span class="review-tag">${r.Tema || 'Sin tema'}</span>
+            <span class="review-tag">${r.Estado || ''}</span>
+          </div>
+          <div class="review-text">${texto}</div>
+        </div>
+      `;
+    }).join('') + (filtered.length > 50 ? `<div class="placeholder">Mostrando 50 de ${filtered.length} reseñas.</div>` : '');
+  }
+  
+  document.getElementById('reviewLocationFilter').addEventListener('change', renderReviews);
+  document.getElementById('reviewRatingFilter').addEventListener('change', renderReviews);
+  
+  loadData();
+</script>
+</body>
+</html>
