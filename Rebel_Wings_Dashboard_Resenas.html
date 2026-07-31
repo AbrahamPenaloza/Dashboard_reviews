@@ -105,7 +105,13 @@
   .top-list {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 20px 32px;
+  }
+  .top-list-subtitle {
+    font-size: 12px;
+    color: #8a8d99;
+    margin: -8px 0 12px 0;
+    font-weight: 400;
   }
   .list-item {
     display: flex;
@@ -183,7 +189,7 @@
     .header { padding: 20px; }
     .header h1 { font-size: 22px; }
     .kpi-grid { grid-template-columns: 1fr 1fr; }
-    .top-list { grid-template-columns: 1fr; }
+    .top-list { grid-template-columns: 1fr; grid-template-areas: unset; }
     .controls { flex-direction: column; align-items: flex-start; }
   }
 </style>
@@ -234,12 +240,24 @@
     <h2>🏆 Mejores vs Peores Sucursales</h2>
     <div class="top-list">
       <div>
-        <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">✨ Top 5 Mejores</h3>
+        <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">✨ Top 5 Mejores (% negativas)</h3>
+        <div class="top-list-subtitle">Menor % de reseñas 1-2⭐ sobre su propio total</div>
         <div id="topBest"></div>
       </div>
       <div>
-        <h3 style="font-size: 14px; color: #e63946; margin-bottom: 12px;">⚠️ Top 5 Peores</h3>
+        <h3 style="font-size: 14px; color: #e63946; margin-bottom: 12px;">⚠️ Top 5 Peores (% negativas)</h3>
+        <div class="top-list-subtitle">Mayor % de reseñas 1-2⭐ sobre su propio total</div>
         <div id="topWorst"></div>
+      </div>
+      <div>
+        <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">📦 Menos quejas (volumen)</h3>
+        <div class="top-list-subtitle">Menor número absoluto de reseñas 1-2⭐</div>
+        <div id="topBestVolume"></div>
+      </div>
+      <div>
+        <h3 style="font-size: 14px; color: #e63946; margin-bottom: 12px;">🚨 Foco rojo (volumen)</h3>
+        <div class="top-list-subtitle">Mayor número absoluto de reseñas 1-2⭐ — a intervenir</div>
+        <div id="topWorstVolume"></div>
       </div>
     </div>
   </div>
@@ -292,6 +310,35 @@
   </div>
   
   <div class="section">
+    <h2>📋 Quejas Generales (Histórico GMB)</h2>
+    <p style="font-size:13px; color:#8a8d99; margin-top:-8px; margin-bottom:16px;">
+      Basado en cortes mensuales acumulados de la bitácora de Google My Business. Los valores mostrados son la diferencia (nuevas reseñas negativas) entre un corte y el corte anterior.
+    </p>
+    <div class="controls" style="margin-bottom: 20px;">
+      <div class="control-group">
+        <label for="quejasMesFilter">Mes de corte:</label>
+        <select id="quejasMesFilter"></select>
+      </div>
+    </div>
+    <div id="quejasLoadError" style="display:none; color:#e63946; font-size:13px; margin-bottom:12px;"></div>
+    <div class="top-list" style="margin-bottom: 24px;">
+      <div>
+        <h3 style="font-size: 14px; color: #e63946; margin-bottom: 12px;">🚨 Top 5 peores del mes (quejas nuevas)</h3>
+        <div class="top-list-subtitle">Sucursales con más reseñas de 1-2⭐ nuevas en el corte seleccionado</div>
+        <div id="quejasTopWorst"></div>
+      </div>
+      <div>
+        <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">📅 Mismo mes, año anterior</h3>
+        <div class="top-list-subtitle">Comparativo del corte seleccionado contra el mismo mes del año pasado</div>
+        <div id="quejasYoY"></div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="quejasTrendChart" role="img" aria-label="Tendencia de quejas negativas nuevas por corte mensual, todo el grupo"></canvas>
+    </div>
+  </div>
+  
+  <div class="section">
     <h2>📝 Reseñas Individuales</h2>
     <div class="controls" style="margin-bottom: 20px;">
       <div class="control-group">
@@ -322,8 +369,13 @@
   const SHEET_ID = '18PDh6eT4qGE9Sp4dm9bLzBysmO673LfJ3Tm6x14D2KA';
   const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Métricas')}`;
   
+  const BITACORA_SHEET_ID = '1nYJWZsSO0OJEOzKtISjj6tBl9nDFnWIhLrRZGS1dC5Q';
+  const BITACORA_SHEET_NAME = 'CALIFICACION X SUCURSAL GMB';
+  
   let allData = [];
   let reviewsData = [];
+  let quejasCortes = []; // [{ label, date, sucursales: { nombre: {rating, total, r1, r2} } }]
+  let quejasChart = null;
   let themesChart = null;
   let managerChart = null;
   
@@ -393,6 +445,197 @@
     } catch (error) {
       console.error('Error cargando reseñas:', error);
     }
+  }
+  
+  // Fecha límite de transición: el primer corte calculado en vivo (fecha calendario)
+  // debe ser DESPUÉS de este mes. Este mes y todos los anteriores usan corte "día 7"
+  // para quedar alineados con el histórico de la bitácora manual de Carlos.
+  // Mes de transición: julio 2026 (el mes en que se hizo este cambio).
+  const MES_TRANSICION = new Date(2026, 6, 1); // 1 julio 2026 (mes 6 = julio, 0-indexed)
+  
+  function calcularCortesDesdeReseñas() {
+    if (!reviewsData || reviewsData.length === 0) return [];
+    
+    // Encontrar rango de fechas real en los datos
+    const fechas = reviewsData
+      .map(r => parseFecha(r['Fecha']))
+      .filter(d => d instanceof Date);
+    if (fechas.length === 0) return [];
+    
+    const fechaMin = new Date(Math.min(...fechas));
+    const hoy = new Date();
+    
+    // Generar la lista de cortes mes a mes desde el primer mes con datos hasta hoy
+    const cortes = [];
+    let cursor = new Date(fechaMin.getFullYear(), fechaMin.getMonth(), 1);
+    
+    while (cursor <= hoy) {
+      const esMesTranscisionOAnterior = cursor <= MES_TRANSICION;
+      let fechaCorte, labelMes;
+      
+      if (esMesTranscisionOAnterior) {
+        // Corte "día 7" del mes, para alinear con el histórico de la bitácora
+        fechaCorte = new Date(cursor.getFullYear(), cursor.getMonth(), 7, 23, 59, 59);
+      } else {
+        // Fecha calendario: fin de mes si ya pasó, o "hoy" si es el mes en curso
+        const finDeMes = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59);
+        fechaCorte = finDeMes < hoy ? finDeMes : hoy;
+      }
+      
+      if (fechaCorte > hoy) fechaCorte = hoy; // nunca cortar en el futuro
+      
+      const nombreMes = cursor.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+      labelMes = esMesTranscisionOAnterior
+        ? `Corte 7 ${nombreMes}`
+        : `Corte ${fechaCorte.getDate()} ${nombreMes}`;
+      
+      // Acumulado real: todas las reseñas con fecha <= fechaCorte
+      const sucursales = {};
+      reviewsData.forEach(r => {
+        const fecha = parseFecha(r['Fecha']);
+        if (!(fecha instanceof Date) || fecha > fechaCorte) return;
+        const nombre = r['Nombre de sucursal'];
+        if (!nombre) return;
+        if (!sucursales[nombre]) sucursales[nombre] = { total: 0, r1: 0, r2: 0, sumaCalif: 0 };
+        const calif = Number(r['Calificación']) || 0;
+        sucursales[nombre].total += 1;
+        sucursales[nombre].sumaCalif += calif;
+        if (calif === 1) sucursales[nombre].r1 += 1;
+        if (calif === 2) sucursales[nombre].r2 += 1;
+      });
+      // Calcular rating promedio por sucursal
+      Object.values(sucursales).forEach(s => {
+        s.rating = s.total > 0 ? +(s.sumaCalif / s.total).toFixed(1) : null;
+      });
+      
+      cortes.push({ label: labelMes, date: new Date(fechaCorte), sucursales });
+      
+      // Avanzar al siguiente mes
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+    
+    return cortes;
+  }
+  
+  function loadQuejasData() {
+    const errorBox = document.getElementById('quejasLoadError');
+    try {
+      if (!reviewsData || reviewsData.length === 0) {
+        throw new Error('Aún no hay datos de reseñas cargados.');
+      }
+      quejasCortes = calcularCortesDesdeReseñas();
+      if (quejasCortes.length === 0) {
+        throw new Error('No se pudieron calcular cortes mensuales.');
+      }
+      populateQuejasMesFilter();
+      updateQuejasModule();
+    } catch (error) {
+      console.error('Error calculando módulo de quejas:', error);
+      errorBox.textContent = `No se pudo calcular el módulo de quejas generales: ${error.message}`;
+      errorBox.style.display = 'block';
+    }
+  }
+  
+  function populateQuejasMesFilter() {
+    const select = document.getElementById('quejasMesFilter');
+    select.innerHTML = quejasCortes.map((c, i) =>
+      `<option value="${i}">${c.label}</option>`
+    ).join('');
+    select.value = String(quejasCortes.length - 1); // corte más reciente por defecto
+    select.addEventListener('change', updateQuejasModule);
+  }
+  
+  function updateQuejasModule() {
+    const idx = Number(document.getElementById('quejasMesFilter').value);
+    const actual = quejasCortes[idx];
+    const anterior = quejasCortes[idx - 1]; // corte inmediato previo, para el neto mensual
+    if (!actual) return;
+    
+    // Neto mensual = total acumulado del corte actual - total acumulado del corte anterior
+    // Igual para 1★ y 2★ (para saber cuántas quejas NUEVAS de 1-2 estrellas hubo)
+    const netos = Object.entries(actual.sucursales).map(([nombre, datos]) => {
+      const prev = anterior ? anterior.sucursales[nombre] : null;
+      const negActual = (datos.r1 || 0) + (datos.r2 || 0);
+      const negPrev = prev ? (prev.r1 || 0) + (prev.r2 || 0) : 0;
+      const negNeto = prev ? Math.max(0, negActual - negPrev) : negActual;
+      return { nombre, negNeto };
+    }).filter(x => x.negNeto > 0);
+    
+    netos.sort((a, b) => b.negNeto - a.negNeto);
+    const top5 = netos.slice(0, 5);
+    
+    document.getElementById('quejasTopWorst').innerHTML = top5.length ? top5.map((d, i) => `
+      <div class="list-item">
+        <span><span class="list-rank">${i + 1}</span><span class="list-name">${d.nombre}</span></span>
+        <span class="list-value" style="color:#e63946;">${d.negNeto} nuevas</span>
+      </div>
+    `).join('') : '<div class="placeholder" style="padding:12px 0;">Sin corte anterior para comparar (primer registro disponible).</div>';
+    
+    // Comparativo año contra año: buscar el corte cuyo mes coincide con el actual, un año antes
+    const targetYear = actual.date.getFullYear() - 1;
+    const targetMonth = actual.date.getMonth();
+    const corteAnioAnterior = quejasCortes.find(c => c.date.getFullYear() === targetYear && c.date.getMonth() === targetMonth);
+    
+    if (corteAnioAnterior) {
+      const totalNegActual = Object.values(actual.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+      const totalNegAnterior = Object.values(corteAnioAnterior.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+      const delta = totalNegActual - totalNegAnterior;
+      const deltaPct = totalNegAnterior > 0 ? ((delta / totalNegAnterior) * 100).toFixed(1) : '—';
+      const mejor = delta < 0;
+      document.getElementById('quejasYoY').innerHTML = `
+        <div class="list-item">
+          <span class="list-name">${corteAnioAnterior.label}</span>
+          <span class="list-value">${totalNegAnterior} neg. acum.</span>
+        </div>
+        <div class="list-item">
+          <span class="list-name">${actual.label}</span>
+          <span class="list-value">${totalNegActual} neg. acum.</span>
+        </div>
+        <div class="list-item">
+          <span class="list-name">Variación</span>
+          <span class="list-value" style="color:${mejor ? '#2a9d8f' : '#e63946'};">${delta >= 0 ? '+' : ''}${delta} (${deltaPct}%)</span>
+        </div>
+      `;
+    } else {
+      document.getElementById('quejasYoY').innerHTML = '<div class="placeholder" style="padding:12px 0;">No hay corte del mismo mes en el año anterior disponible.</div>';
+    }
+    
+    renderQuejasTrendChart();
+  }
+  
+  function renderQuejasTrendChart() {
+    const labels = quejasCortes.map(c => c.label.replace(/^AL\s+/i, ''));
+    const data = quejasCortes.map((c, i) => {
+      const prev = quejasCortes[i - 1];
+      const totalNegActual = Object.values(c.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+      if (!prev) return null;
+      const totalNegPrev = Object.values(prev.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+      return Math.max(0, totalNegActual - totalNegPrev);
+    });
+    
+    if (quejasChart) quejasChart.destroy();
+    const ctx = document.getElementById('quejasTrendChart').getContext('2d');
+    quejasChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Reseñas 1-2⭐ nuevas por corte (todo el grupo)',
+          data,
+          borderColor: '#e63946',
+          backgroundColor: 'rgba(230, 57, 70, 0.1)',
+          fill: true,
+          tension: 0.3,
+          spanGaps: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: true } },
+        scales: { x: { ticks: { maxRotation: 60, minRotation: 45, font: { size: 9 } } } }
+      }
+    });
   }
   
   function getStartDate() {
@@ -573,15 +816,23 @@
       byLocation[row.Sucursal].total += row['Total Reseñas'] || 0;
     });
     
-    const sorted = Object.entries(byLocation)
+    const enriched = Object.entries(byLocation)
       .map(([name, data]) => ({
         name,
+        neg: data.neg,
+        total: data.total,
         percent: data.total > 0 ? ((data.neg / data.total) * 100) : 0
-      }))
-      .sort((a, b) => a.percent - b.percent);
+      }));
     
-    const best = sorted.slice(0, 5);
-    const worst = sorted.slice(-5).reverse();
+    // Ranking por porcentaje (criterio original)
+    const byPercent = [...enriched].sort((a, b) => a.percent - b.percent);
+    const best = byPercent.slice(0, 5);
+    const worst = byPercent.slice(-5).reverse();
+    
+    // Ranking por número absoluto de reseñas negativas (foco rojo real)
+    const byVolume = [...enriched].sort((a, b) => a.neg - b.neg);
+    const bestVolume = byVolume.slice(0, 5);
+    const worstVolume = byVolume.slice(-5).reverse();
     
     document.getElementById('topBest').innerHTML = best.map((d, i) => `
       <div class="list-item">
@@ -594,6 +845,20 @@
       <div class="list-item">
         <span><span class="list-rank">${i + 1}</span><span class="list-name">${d.name}</span></span>
         <span class="list-value" style="color: #e63946;">${d.percent.toFixed(1)}%</span>
+      </div>
+    `).join('');
+    
+    document.getElementById('topBestVolume').innerHTML = bestVolume.map((d, i) => `
+      <div class="list-item">
+        <span><span class="list-rank">${i + 1}</span><span class="list-name">${d.name}</span></span>
+        <span class="list-value">${d.neg} neg. / ${d.total}</span>
+      </div>
+    `).join('');
+    
+    document.getElementById('topWorstVolume').innerHTML = worstVolume.map((d, i) => `
+      <div class="list-item">
+        <span><span class="list-rank">${i + 1}</span><span class="list-name">${d.name}</span></span>
+        <span class="list-value" style="color: #e63946;">${d.neg} neg. / ${d.total}</span>
       </div>
     `).join('');
   }
@@ -719,7 +984,7 @@
   document.getElementById('reviewLocationFilter').addEventListener('change', renderReviews);
   document.getElementById('reviewRatingFilter').addEventListener('change', renderReviews);
   
-  loadData();
+  loadData().then(() => loadQuejasData());
 </script>
 </body>
 </html>
