@@ -689,8 +689,11 @@
   function getFilteredData() {
     const startDate = getStartDate();
     return allData.filter(row => {
-      const date = new Date(row.Año, row.Mes - 1, 1);
-      return date >= startDate;
+      // Se compara contra el ÚLTIMO día del mes de la fila (no el primero), para que
+      // un mes en curso (ej. julio si hoy es 31 de julio) no quede excluido solo porque
+      // el filtro de "últimos N días" cae más tarde que el día 1 del mismo mes.
+      const ultimoDiaDelMes = new Date(row.Año, row.Mes, 0, 23, 59, 59);
+      return ultimoDiaDelMes >= startDate;
     });
   }
   
