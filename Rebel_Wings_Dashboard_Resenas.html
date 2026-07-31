@@ -383,6 +383,7 @@
     if (!value) return null;
     if (value instanceof Date) return value;
     const str = String(value).trim();
+    if (!str) return null;
     const gvizMatch = str.match(/^Date\((\d+),(\d+),(\d+)/);
     if (gvizMatch) {
       const [, y, m, d] = gvizMatch;
@@ -393,8 +394,15 @@
       const [, d, m, y] = ddmmyyyy;
       return new Date(Number(y), Number(m) - 1, Number(d));
     }
-    const parsed = new Date(str);
-    return isNaN(parsed) ? null : parsed;
+    // Último recurso: solo aceptar formatos ISO explícitos (yyyy-mm-dd), nunca
+    // el parser laxo genérico de Date(), que puede interpretar texto ambiguo
+    // como fechas absurdas (ej. años tipo 2012 de un dato mal formado).
+    const iso = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (iso) {
+      const [, y, m, d] = iso;
+      return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    return null;
   }
   
   async function loadData() {
@@ -456,14 +464,27 @@
   function calcularCortesDesdeReseñas() {
     if (!reviewsData || reviewsData.length === 0) return [];
     
-    // Encontrar rango de fechas real en los datos
-    const fechas = reviewsData
-      .map(r => parseFecha(r['Fecha']))
-      .filter(d => d instanceof Date);
-    if (fechas.length === 0) return [];
-    
-    const fechaMin = new Date(Math.min(...fechas));
+    // Rango razonable de fechas: la cadena abrió su primera sucursal hace años,
+    // pero cualquier fecha antes de 2015 o después de "hoy" es casi seguro un dato
+    // corrupto (celda vacía, texto no reconocido cayendo al parser laxo, etc.)
+    const LIMITE_INFERIOR = new Date(2015, 0, 1);
     const hoy = new Date();
+    
+    const fechasValidas = reviewsData
+      .map(r => parseFecha(r['Fecha']))
+      .filter(d => d instanceof Date && d >= LIMITE_INFERIOR && d <= hoy);
+    
+    // DIAGNÓSTICO TEMPORAL: mostrar en consola las fechas fuera de rango o no parseadas
+    const fechasSospechosas = reviewsData
+      .map(r => ({ raw: r['Fecha'], parsed: parseFecha(r['Fecha']) }))
+      .filter(x => !(x.parsed instanceof Date) || x.parsed < LIMITE_INFERIOR || x.parsed > hoy);
+    if (fechasSospechosas.length > 0) {
+      console.warn(`[DIAGNÓSTICO] ${fechasSospechosas.length} fechas sospechosas encontradas:`, fechasSospechosas.slice(0, 20));
+    }
+    
+    if (fechasValidas.length === 0) return [];
+    
+    const fechaMin = new Date(Math.min(...fechasValidas));
     
     // Generar la lista de cortes mes a mes desde el primer mes con datos hasta hoy
     const cortes = [];
@@ -493,7 +514,7 @@
       const sucursales = {};
       reviewsData.forEach(r => {
         const fecha = parseFecha(r['Fecha']);
-        if (!(fecha instanceof Date) || fecha > fechaCorte) return;
+        if (!(fecha instanceof Date) || fecha < LIMITE_INFERIOR || fecha > fechaCorte) return;
         const nombre = r['Nombre de sucursal'];
         if (!nombre) return;
         if (!sucursales[nombre]) sucursales[nombre] = { total: 0, r1: 0, r2: 0, sumaCalif: 0 };
