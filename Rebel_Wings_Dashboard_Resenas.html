@@ -594,19 +594,34 @@
     const corteAnioAnterior = quejasCortes.find(c => c.date.getFullYear() === targetYear && c.date.getMonth() === targetMonth);
     
     if (corteAnioAnterior) {
-      const totalNegActual = Object.values(actual.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
-      const totalNegAnterior = Object.values(corteAnioAnterior.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
-      const delta = totalNegActual - totalNegAnterior;
-      const deltaPct = totalNegAnterior > 0 ? ((delta / totalNegAnterior) * 100).toFixed(1) : '—';
+      // Neto = reseñas negativas NUEVAS de ese corte específico, no el acumulado histórico.
+      // Para el corte actual ya tenemos `netos` (arriba). Necesitamos el mismo cálculo
+      // para el corte del año anterior, usando SU propio corte previo inmediato.
+      const netoDeCorte = (corte) => {
+        const idxCorte = quejasCortes.indexOf(corte);
+        const prevCorte = quejasCortes[idxCorte - 1];
+        return Object.entries(corte.sucursales).reduce((sum, [nombre, datos]) => {
+          const negActual = (datos.r1 || 0) + (datos.r2 || 0);
+          const prevDatos = prevCorte ? prevCorte.sucursales[nombre] : null;
+          const negPrev = prevDatos ? (prevDatos.r1 || 0) + (prevDatos.r2 || 0) : 0;
+          const neto = prevCorte ? Math.max(0, negActual - negPrev) : negActual;
+          return sum + neto;
+        }, 0);
+      };
+      
+      const netoActual = netoDeCorte(actual);
+      const netoAnterior = netoDeCorte(corteAnioAnterior);
+      const delta = netoActual - netoAnterior;
+      const deltaPct = netoAnterior > 0 ? ((delta / netoAnterior) * 100).toFixed(1) : '—';
       const mejor = delta < 0;
       document.getElementById('quejasYoY').innerHTML = `
         <div class="list-item">
           <span class="list-name">${corteAnioAnterior.label}</span>
-          <span class="list-value">${totalNegAnterior} neg. acum.</span>
+          <span class="list-value">${netoAnterior} neg. nuevas</span>
         </div>
         <div class="list-item">
           <span class="list-name">${actual.label}</span>
-          <span class="list-value">${totalNegActual} neg. acum.</span>
+          <span class="list-value">${netoActual} neg. nuevas</span>
         </div>
         <div class="list-item">
           <span class="list-name">Variación</span>
@@ -621,9 +636,16 @@
   }
   
   function renderQuejasTrendChart() {
-    const labels = quejasCortes.map(c => c.label.replace(/^AL\s+/i, ''));
-    const data = quejasCortes.map((c, i) => {
-      const prev = quejasCortes[i - 1];
+    // Solo para la gráfica: se omiten los cortes anteriores a 2020, cuyo volumen
+    // es demasiado bajo y solo aplasta la escala visual. El neto de cada punto
+    // sigue calculándose contra su propio corte anterior real (incluso si ese
+    // corte anterior es de 2019), para no perder precisión en el primer punto.
+    const cortesVisibles = quejasCortes.filter(c => c.date.getFullYear() >= 2020);
+    
+    const labels = cortesVisibles.map(c => c.label.replace(/^AL\s+/i, ''));
+    const data = cortesVisibles.map((c) => {
+      const idxReal = quejasCortes.indexOf(c);
+      const prev = quejasCortes[idxReal - 1];
       const totalNegActual = Object.values(c.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
       if (!prev) return null;
       const totalNegPrev = Object.values(prev.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
