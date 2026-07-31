@@ -312,7 +312,8 @@
   <div class="section">
     <h2>📋 Quejas Generales (Histórico GMB)</h2>
     <p style="font-size:13px; color:#8a8d99; margin-top:-8px; margin-bottom:16px;">
-      Basado en cortes mensuales acumulados de la bitácora de Google My Business. Los valores mostrados son la diferencia (nuevas reseñas negativas) entre un corte y el corte anterior.
+      Calculado directo desde la hoja "Reseñas" (Google Business Profile), sin depender de la bitácora manual. Los valores mostrados son la diferencia (nuevas reseñas negativas) entre un corte y el corte anterior.
+      <br><span style="color:#8a8d99; font-size:12px;">Nota: el histórico de 2024 tiene una captura incompleta conocida (carga inicial), por lo que el comparativo año contra año de ese periodo puede subestimar el volumen real. Los datos de 2025 en adelante se consideran confiables.</span>
     </p>
     <div class="controls" style="margin-bottom: 20px;">
       <div class="control-group">
@@ -467,20 +468,15 @@
     // Rango razonable de fechas: la cadena abrió su primera sucursal hace años,
     // pero cualquier fecha antes de 2015 o después de "hoy" es casi seguro un dato
     // corrupto (celda vacía, texto no reconocido cayendo al parser laxo, etc.)
-    const LIMITE_INFERIOR = new Date(2015, 0, 1);
+    // Confirmado: reseñas desde 2012 son legítimas (fichas de Google que existían
+    // antes de que la marca se llamara Rebel Wings). Solo se descartan fechas
+    // realmente imposibles (antes de la era de reseñas de Google, o en el futuro).
+    const LIMITE_INFERIOR = new Date(2010, 0, 1);
     const hoy = new Date();
     
     const fechasValidas = reviewsData
       .map(r => parseFecha(r['Fecha']))
       .filter(d => d instanceof Date && d >= LIMITE_INFERIOR && d <= hoy);
-    
-    // DIAGNÓSTICO TEMPORAL: mostrar en consola las fechas fuera de rango o no parseadas
-    const fechasSospechosas = reviewsData
-      .map(r => ({ raw: r['Fecha'], parsed: parseFecha(r['Fecha']) }))
-      .filter(x => !(x.parsed instanceof Date) || x.parsed < LIMITE_INFERIOR || x.parsed > hoy);
-    if (fechasSospechosas.length > 0) {
-      console.warn(`[DIAGNÓSTICO] ${fechasSospechosas.length} fechas sospechosas encontradas:`, fechasSospechosas.slice(0, 20));
-    }
     
     if (fechasValidas.length === 0) return [];
     
