@@ -744,25 +744,36 @@
     // sigue calculándose contra su propio corte anterior real (incluso si ese
     // corte anterior es de 2019), para no perder precisión en el primer punto.
     const cortesVisibles = quejasCortes.filter(c => c.date.getFullYear() >= 2020);
+    const sucursalFiltro = document.getElementById('quejasYoYSucursal').value;
+    
+    const sumaNeg = (sucursalesObj) => {
+      const entradas = sucursalFiltro
+        ? Object.entries(sucursalesObj).filter(([nombre]) => nombre === sucursalFiltro)
+        : Object.entries(sucursalesObj);
+      return entradas.reduce((s, [, d]) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+    };
     
     const labels = cortesVisibles.map(c => c.label);
     const data = cortesVisibles.map((c) => {
       const idxReal = quejasCortes.indexOf(c);
       const prev = quejasCortes[idxReal - 1];
-      const totalNegActual = Object.values(c.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+      const totalNegActual = sumaNeg(c.sucursales);
       if (!prev) return null;
-      const totalNegPrev = Object.values(prev.sucursales).reduce((s, d) => s + (d.r1 || 0) + (d.r2 || 0), 0);
+      const totalNegPrev = sumaNeg(prev.sucursales);
       return Math.max(0, totalNegActual - totalNegPrev);
     });
     
     if (quejasChart) quejasChart.destroy();
     const ctx = document.getElementById('quejasTrendChart').getContext('2d');
+    const labelSerie = sucursalFiltro
+      ? `Reseñas 1-2⭐ nuevas por corte (${sucursalFiltro})`
+      : 'Reseñas 1-2⭐ nuevas por corte (todo el grupo)';
     quejasChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels,
         datasets: [{
-          label: 'Reseñas 1-2⭐ nuevas por corte (todo el grupo)',
+          label: labelSerie,
           data,
           borderColor: '#e63946',
           backgroundColor: 'rgba(230, 57, 70, 0.1)',
