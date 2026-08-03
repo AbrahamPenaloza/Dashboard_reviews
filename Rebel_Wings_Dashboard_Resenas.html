@@ -252,6 +252,24 @@
   
   <div class="section">
     <h2>🏆 Mejores vs Peores Sucursales</h2>
+    <div class="controls" style="margin-bottom: 16px;">
+      <div class="control-group">
+        <label for="period_top">Período:</label>
+        <select id="period_top" class="section-period">
+          <option value="all">Todo el tiempo</option>
+          <option value="year">Últimos 365 días</option>
+          <option value="quarter">Últimos 90 días</option>
+          <option value="month" selected>Últimos 30 días</option>
+          <option value="custom">Personalizado…</option>
+        </select>
+      </div>
+      <div class="control-group section-custom-range" id="customRangeGroup_top" style="display:none;">
+        <label for="customStart_top">Del:</label>
+        <input type="date" id="customStart_top">
+        <label for="customEnd_top">Al:</label>
+        <input type="date" id="customEnd_top">
+      </div>
+    </div>
     <div class="top-list">
       <div>
         <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">✨ Top 5 Mejores (% negativas)</h3>
@@ -280,6 +298,22 @@
     <h2>📊 Quejas Negativas por Tema</h2>
     <div class="controls" style="margin-bottom: 20px;">
       <div class="control-group">
+        <label for="period_theme">Período:</label>
+        <select id="period_theme" class="section-period">
+          <option value="all">Todo el tiempo</option>
+          <option value="year">Últimos 365 días</option>
+          <option value="quarter">Últimos 90 días</option>
+          <option value="month" selected>Últimos 30 días</option>
+          <option value="custom">Personalizado…</option>
+        </select>
+      </div>
+      <div class="control-group section-custom-range" id="customRangeGroup_theme" style="display:none;">
+        <label for="customStart_theme">Del:</label>
+        <input type="date" id="customStart_theme">
+        <label for="customEnd_theme">Al:</label>
+        <input type="date" id="customEnd_theme">
+      </div>
+      <div class="control-group">
         <label for="themeLocationFilter">Sucursal:</label>
         <select id="themeLocationFilter">
           <option value="">Todas las sucursales</option>
@@ -294,6 +328,13 @@
     </div>
     <div class="chart-container">
       <canvas id="complaintsChart" role="img" aria-label="Cantidad de quejas negativas por tema"></canvas>
+    </div>
+  </div>
+  
+  <div class="section" id="resumenEjecutivoResenas" style="background: linear-gradient(135deg, #fff5f5, #fff);">
+    <h2>🧠 Resumen Ejecutivo — Reseñas</h2>
+    <div id="resumenResenasContent">
+      <div class="placeholder" style="padding:12px 0; color:#999;">Generando resumen…</div>
     </div>
   </div>
   
@@ -318,6 +359,24 @@
   
   <div class="section">
     <h2>👥 Rendimiento por Zona/Gerente</h2>
+    <div class="controls" style="margin-bottom: 16px;">
+      <div class="control-group">
+        <label for="period_manager">Período:</label>
+        <select id="period_manager" class="section-period">
+          <option value="all">Todo el tiempo</option>
+          <option value="year">Últimos 365 días</option>
+          <option value="quarter">Últimos 90 días</option>
+          <option value="month" selected>Últimos 30 días</option>
+          <option value="custom">Personalizado…</option>
+        </select>
+      </div>
+      <div class="control-group section-custom-range" id="customRangeGroup_manager" style="display:none;">
+        <label for="customStart_manager">Del:</label>
+        <input type="date" id="customStart_manager">
+        <label for="customEnd_manager">Al:</label>
+        <input type="date" id="customEnd_manager">
+      </div>
+    </div>
     <div class="chart-container">
       <canvas id="managerChart" role="img" aria-label="Porcentaje de reseñas negativas por zona o gerente regional"></canvas>
     </div>
@@ -329,10 +388,19 @@
       Calculado directo desde la hoja "Reseñas" (Google Business Profile), sin depender de la bitácora manual. Los valores mostrados son la diferencia (nuevas reseñas negativas) entre un corte y el corte anterior.
       <br><span style="color:#8a8d99; font-size:12px;">Nota: el histórico de 2024 tiene una captura incompleta conocida (carga inicial), por lo que el comparativo año contra año de ese periodo puede subestimar el volumen real. Los datos de 2025 en adelante se consideran confiables.</span>
     </p>
+    <div id="resumenQuejasContent" style="background:#fff5f5; border-radius:8px; padding:14px 16px; margin-bottom:20px;">
+      <div class="placeholder" style="padding:4px 0; color:#999;">Generando resumen…</div>
+    </div>
     <div class="controls" style="margin-bottom: 20px;">
       <div class="control-group">
         <label for="quejasMesFilter">Mes de corte:</label>
         <select id="quejasMesFilter"></select>
+      </div>
+      <div class="control-group">
+        <label for="quejasYoYSucursal">Comparativo por:</label>
+        <select id="quejasYoYSucursal">
+          <option value="">Todas las sucursales (visión general)</option>
+        </select>
       </div>
     </div>
     <div id="quejasLoadError" style="display:none; color:#e63946; font-size:13px; margin-bottom:12px;"></div>
@@ -344,7 +412,7 @@
       </div>
       <div>
         <h3 style="font-size: 14px; color: #2b2d42; margin-bottom: 12px;">📅 Mismo mes, año anterior</h3>
-        <div class="top-list-subtitle">Comparativo del corte seleccionado contra el mismo mes del año pasado</div>
+        <div class="top-list-subtitle" id="quejasYoYSubtitle">Comparativo del corte seleccionado contra el mismo mes del año pasado</div>
         <div id="quejasYoY"></div>
       </div>
     </div>
@@ -444,6 +512,9 @@
       allData = rows;
       await loadReviewsData();
       updateDashboard();
+      updateTopSection();
+      updateThemeSection();
+      updateManagerSection();
       populateReviewLocationFilter();
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -516,9 +587,7 @@
       if (fechaCorte > hoy) fechaCorte = hoy; // nunca cortar en el futuro
       
       const nombreMes = cursor.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-      labelMes = esMesTranscisionOAnterior
-        ? `Corte 7 ${nombreMes}`
-        : `Corte ${fechaCorte.getDate()} ${nombreMes}`;
+      labelMes = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
       
       // Acumulado real: todas las reseñas con fecha <= fechaCorte
       const sucursales = {};
@@ -574,6 +643,16 @@
     ).join('');
     select.value = String(quejasCortes.length - 1); // corte más reciente por defecto
     select.addEventListener('change', updateQuejasModule);
+    
+    // Poblar selector de sucursal para el comparativo YoY, tomando nombres únicos
+    // de todos los cortes (por si alguna sucursal solo aparece en cortes antiguos o nuevos)
+    const sucursalSelect = document.getElementById('quejasYoYSucursal');
+    const nombresUnicos = new Set();
+    quejasCortes.forEach(c => Object.keys(c.sucursales).forEach(n => nombresUnicos.add(n)));
+    const nombresOrdenados = [...nombresUnicos].sort();
+    sucursalSelect.innerHTML = '<option value="">Todas las sucursales (visión general)</option>' +
+      nombresOrdenados.map(n => `<option value="${n}">${n}</option>`).join('');
+    sucursalSelect.addEventListener('change', updateQuejasModule);
   }
   
   function updateQuejasModule() {
@@ -611,10 +690,14 @@
       // Neto = reseñas negativas NUEVAS de ese corte específico, no el acumulado histórico.
       // Para el corte actual ya tenemos `netos` (arriba). Necesitamos el mismo cálculo
       // para el corte del año anterior, usando SU propio corte previo inmediato.
-      const netoDeCorte = (corte) => {
+      // Si se pasa `sucursalFiltro`, solo se suma esa sucursal en vez del total del grupo.
+      const netoDeCorte = (corte, sucursalFiltro) => {
         const idxCorte = quejasCortes.indexOf(corte);
         const prevCorte = quejasCortes[idxCorte - 1];
-        return Object.entries(corte.sucursales).reduce((sum, [nombre, datos]) => {
+        const entradas = sucursalFiltro
+          ? Object.entries(corte.sucursales).filter(([nombre]) => nombre === sucursalFiltro)
+          : Object.entries(corte.sucursales);
+        return entradas.reduce((sum, [nombre, datos]) => {
           const negActual = (datos.r1 || 0) + (datos.r2 || 0);
           const prevDatos = prevCorte ? prevCorte.sucursales[nombre] : null;
           const negPrev = prevDatos ? (prevDatos.r1 || 0) + (prevDatos.r2 || 0) : 0;
@@ -623,8 +706,13 @@
         }, 0);
       };
       
-      const netoActual = netoDeCorte(actual);
-      const netoAnterior = netoDeCorte(corteAnioAnterior);
+      const sucursalSeleccionada = document.getElementById('quejasYoYSucursal').value;
+      document.getElementById('quejasYoYSubtitle').textContent = sucursalSeleccionada
+        ? `Comparativo de ${sucursalSeleccionada} contra el mismo mes del año pasado`
+        : 'Comparativo del corte seleccionado contra el mismo mes del año pasado (todas las sucursales)';
+      
+      const netoActual = netoDeCorte(actual, sucursalSeleccionada);
+      const netoAnterior = netoDeCorte(corteAnioAnterior, sucursalSeleccionada);
       const delta = netoActual - netoAnterior;
       const deltaPct = netoAnterior > 0 ? ((delta / netoAnterior) * 100).toFixed(1) : '—';
       const mejor = delta < 0;
@@ -647,6 +735,7 @@
     }
     
     renderQuejasTrendChart();
+    actualizarResumenQuejas();
   }
   
   function renderQuejasTrendChart() {
@@ -656,7 +745,7 @@
     // corte anterior es de 2019), para no perder precisión en el primer punto.
     const cortesVisibles = quejasCortes.filter(c => c.date.getFullYear() >= 2020);
     
-    const labels = cortesVisibles.map(c => c.label.replace(/^AL\s+/i, ''));
+    const labels = cortesVisibles.map(c => c.label);
     const data = cortesVisibles.map((c) => {
       const idxReal = quejasCortes.indexOf(c);
       const prev = quejasCortes[idxReal - 1];
@@ -691,23 +780,26 @@
     });
   }
   
-  function getStartDate() {
-    const period = document.getElementById('period').value;
+  // Todas estas funciones aceptan un `suffix` opcional (ej. '_top', '_theme', '_manager')
+  // para leer de un selector de sección independiente en vez del filtro global.
+  // Sin suffix, se comportan exactamente igual que antes (filtro global de arriba).
+  function getStartDate(suffix = '') {
+    const period = document.getElementById('period' + suffix).value;
     const now = new Date();
     if (period === 'month') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     if (period === 'quarter') return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     if (period === 'year') return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     if (period === 'custom') {
-      const val = document.getElementById('customStart').value;
+      const val = document.getElementById('customStart' + suffix).value;
       return val ? new Date(val + 'T00:00:00') : new Date('2015-01-01');
     }
     return new Date('2015-01-01');
   }
   
-  function getEndDate() {
-    const period = document.getElementById('period').value;
+  function getEndDate(suffix = '') {
+    const period = document.getElementById('period' + suffix).value;
     if (period === 'custom') {
-      const val = document.getElementById('customEnd').value;
+      const val = document.getElementById('customEnd' + suffix).value;
       return val ? new Date(val + 'T23:59:59') : new Date();
     }
     return new Date();
@@ -722,9 +814,9 @@
     return Math.max(end.getTime() - start.getTime(), 24 * 60 * 60 * 1000);
   }
   
-  function getFilteredData() {
-    const startDate = getStartDate();
-    const endDate = getEndDate();
+  function getFilteredData(suffix = '') {
+    const startDate = getStartDate(suffix);
+    const endDate = getEndDate(suffix);
     return allData.filter(row => {
       // Se compara contra el ÚLTIMO día del mes de la fila (no el primero), para que
       // un mes en curso (ej. julio si hoy es 31 de julio) no quede excluido solo porque
@@ -735,9 +827,9 @@
     });
   }
   
-  function getFilteredReviews() {
-    const startDate = getStartDate();
-    const endDate = getEndDate();
+  function getFilteredReviews(suffix = '') {
+    const startDate = getStartDate(suffix);
+    const endDate = getEndDate(suffix);
     return reviewsData.filter(r => {
       const date = parseFecha(r.Fecha);
       return date && date >= startDate && date <= endDate;
@@ -765,11 +857,25 @@
     document.getElementById('negativePercent').textContent = negativePercent + '%';
     document.getElementById('locationCount').textContent = locations;
     
-    updateTopLocations(filtered);
+    updateComparisonTable();
+    actualizarResumenResenas();
+  }
+  
+  // Cada una de estas 3 secciones ahora tiene su propio selector de periodo
+  // independiente (sufijos _top, _theme, _manager), en vez de depender del
+  // filtro global de arriba.
+  function updateTopSection() {
+    updateTopLocations(getFilteredData('_top'));
+  }
+  
+  function updateThemeSection() {
+    const filtered = getFilteredData('_theme');
     updateThemesChart(filtered);
     updateThemeFilter(filtered);
-    updateManagerChart(filtered);
-    updateComparisonTable();
+  }
+  
+  function updateManagerSection() {
+    updateManagerChart(getFilteredData('_manager'));
   }
   
   function updateManagerChart(data) {
@@ -849,22 +955,23 @@
     return calcStats(reviews, prevStart, prevEnd);
   }
   
-  function updateComparisonTable() {
+  // Calcula las estadísticas de comparación por sucursal (tendencia, % actual vs.
+  // comparación, totales de 30/90/365 días). La usan tanto la tabla comparativa
+  // como el resumen ejecutivo, para no duplicar la lógica de cálculo.
+  function calcularFilasComparativas() {
     const now = new Date();
     const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     const d365 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     const future = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     
-    // Periodo seleccionado por el usuario (respeta el selector de Período de arriba,
-    // incluyendo el rango personalizado), usado específicamente para la tendencia.
     const selStart = getStartDate();
     const selEnd = getEndDate();
     const durationMs = getPeriodDurationMs();
     
     const locations = [...new Set(reviewsData.map(r => r['Nombre de sucursal']).filter(Boolean))].sort();
     
-    const rows = locations.map(name => {
+    return locations.map(name => {
       const reviews = reviewsData.filter(r => r['Nombre de sucursal'] === name);
       const s30 = calcStats(reviews, d30, future);
       const s90 = calcStats(reviews, d90, future);
@@ -881,6 +988,79 @@
       
       return { name, s30, s90, s365, trend, sSel, sComparacion, total30: s30.total, total90: s90.total, total365: s365.total };
     });
+  }
+  
+  // Calcula hallazgos estructurados (números ya correctos, sin texto redactado)
+  // para el resumen ejecutivo del módulo de Reseñas. Esto es 100% determinista;
+  // la API solo se usa después para redactar estos hallazgos en lenguaje natural.
+  function calcularHallazgosResenas() {
+    const rows = calcularFilasComparativas();
+    const conDatos = rows.filter(r => r.sSel.total > 0);
+    
+    const empeorando = conDatos.filter(r => r.trend === 'down')
+      .sort((a, b) => (b.sSel.percent - b.sComparacion.percent) - (a.sSel.percent - a.sComparacion.percent))
+      .slice(0, 3)
+      .map(r => ({ sucursal: r.name, percentActual: +r.sSel.percent.toFixed(1), percentAnterior: +r.sComparacion.percent.toFixed(1) }));
+    
+    const mejorando = conDatos.filter(r => r.trend === 'up')
+      .sort((a, b) => (a.sSel.percent - a.sComparacion.percent) - (b.sSel.percent - b.sComparacion.percent))
+      .slice(0, 3)
+      .map(r => ({ sucursal: r.name, percentActual: +r.sSel.percent.toFixed(1), percentAnterior: +r.sComparacion.percent.toFixed(1) }));
+    
+    // Alerta sostenida: % alto tanto en 30 como en 90 días, sin importar la tendencia
+    // (patrón tipo Martín Carrera: puede estar "mejorando" y seguir siendo crítico)
+    const alertaSostenida = conDatos
+      .filter(r => r.s30.percent !== null && r.s90.percent !== null && r.s30.percent >= 40 && r.s90.percent >= 40)
+      .sort((a, b) => b.s30.percent - a.s30.percent)
+      .slice(0, 3)
+      .map(r => ({ sucursal: r.name, percent30d: +r.s30.percent.toFixed(1), percent90d: +r.s90.percent.toFixed(1) }));
+    
+    const totalNegActual = conDatos.reduce((s, r) => s + r.sSel.neg, 0);
+    const totalActual = conDatos.reduce((s, r) => s + r.sSel.total, 0);
+    const percentGlobalActual = totalActual > 0 ? +((totalNegActual / totalActual) * 100).toFixed(1) : null;
+    
+    const totalNegComp = conDatos.reduce((s, r) => s + (r.sComparacion.neg || 0), 0);
+    const totalComp = conDatos.reduce((s, r) => s + (r.sComparacion.total || 0), 0);
+    const percentGlobalComparacion = totalComp > 0 ? +((totalNegComp / totalComp) * 100).toFixed(1) : null;
+    
+    return {
+      periodo: document.getElementById('period').selectedOptions[0].textContent,
+      comparacion: document.getElementById('compareMode').selectedOptions[0].textContent,
+      percentGlobalActual,
+      percentGlobalComparacion,
+      empeorando,
+      mejorando,
+      alertaSostenida
+    };
+  }
+  
+  // Mismo principio para el módulo de Quejas Generales.
+  function calcularHallazgosQuejas() {
+    const idx = Number(document.getElementById('quejasMesFilter').value);
+    const actual = quejasCortes[idx];
+    const anterior = quejasCortes[idx - 1];
+    if (!actual) return null;
+    
+    const netos = Object.entries(actual.sucursales).map(([nombre, datos]) => {
+      const prev = anterior ? anterior.sucursales[nombre] : null;
+      const negActual = (datos.r1 || 0) + (datos.r2 || 0);
+      const negPrev = prev ? (prev.r1 || 0) + (prev.r2 || 0) : 0;
+      const negNeto = prev ? Math.max(0, negActual - negPrev) : negActual;
+      return { sucursal: nombre, quejasNuevas: negNeto };
+    }).filter(x => x.quejasNuevas > 0).sort((a, b) => b.quejasNuevas - a.quejasNuevas);
+    
+    const focoRojo = netos.slice(0, 3);
+    const totalQuejasMes = netos.reduce((s, n) => s + n.quejasNuevas, 0);
+    
+    return {
+      mesCorte: actual.label,
+      totalQuejasMes,
+      focoRojo
+    };
+  }
+  
+  function updateComparisonTable() {
+    const rows = calcularFilasComparativas();
     
     // Encabezado dinámico: deja explícito contra qué se está comparando la tendencia
     const periodLabel = document.getElementById('period').selectedOptions[0].textContent;
@@ -1047,27 +1227,39 @@
     });
   }
   
-  document.getElementById('period').addEventListener('change', () => {
-    const isCustom = document.getElementById('period').value === 'custom';
-    document.getElementById('customRangeGroup').style.display = isCustom ? 'flex' : 'none';
-    if (!isCustom || (document.getElementById('customStart').value && document.getElementById('customEnd').value)) {
-      updateDashboard();
-    }
-  });
-  document.getElementById('customStart').addEventListener('change', () => {
-    if (document.getElementById('customStart').value && document.getElementById('customEnd').value) updateDashboard();
-  });
-  document.getElementById('customEnd').addEventListener('change', () => {
-    if (document.getElementById('customStart').value && document.getElementById('customEnd').value) updateDashboard();
-  });
+  // Conecta un selector de periodo (con sus inputs de rango personalizado) a una
+  // función de refresco. Se usa tanto para el filtro global como para los 3
+  // filtros de sección independientes.
+  function wirePeriodSelector(suffix, refreshFn) {
+    const periodEl = document.getElementById('period' + suffix);
+    const startEl = document.getElementById('customStart' + suffix);
+    const endEl = document.getElementById('customEnd' + suffix);
+    const rangeGroupEl = document.getElementById('customRangeGroup' + suffix);
+    
+    periodEl.addEventListener('change', () => {
+      const isCustom = periodEl.value === 'custom';
+      rangeGroupEl.style.display = isCustom ? 'flex' : 'none';
+      if (!isCustom || (startEl.value && endEl.value)) refreshFn();
+    });
+    startEl.addEventListener('change', () => {
+      if (startEl.value && endEl.value) refreshFn();
+    });
+    endEl.addEventListener('change', () => {
+      if (startEl.value && endEl.value) refreshFn();
+    });
+  }
+  
+  wirePeriodSelector('', updateDashboard);
+  wirePeriodSelector('_top', updateTopSection);
+  wirePeriodSelector('_theme', updateThemeSection);
+  wirePeriodSelector('_manager', updateManagerSection);
+  
   document.getElementById('compareMode').addEventListener('change', updateComparisonTable);
   document.getElementById('themeFilter').addEventListener('change', () => {
-    const filtered = getFilteredData();
-    updateThemesChart(filtered);
+    updateThemesChart(getFilteredData('_theme'));
   });
   document.getElementById('themeLocationFilter').addEventListener('change', () => {
-    const filtered = getFilteredData();
-    updateThemesChart(filtered);
+    updateThemesChart(getFilteredData('_theme'));
   });
   
   function populateReviewLocationFilter() {
@@ -1123,6 +1315,75 @@
   
   document.getElementById('reviewLocationFilter').addEventListener('change', renderReviews);
   document.getElementById('reviewRatingFilter').addEventListener('change', renderReviews);
+  
+  // Genera el resumen ejecutivo con plantillas de texto fijas, sin llamar a
+  // ninguna API externa (sin costo, respuesta instantánea). Toma los mismos
+  // hallazgos ya calculados de forma determinista en calcularHallazgosResenas
+  // y calcularHallazgosQuejas.
+  function redactarResumenResenas(h) {
+    if (!h || (h.percentGlobalActual === null)) return null;
+    const frases = [];
+    
+    const dirGlobal = h.percentGlobalComparacion !== null
+      ? (h.percentGlobalActual < h.percentGlobalComparacion - 1 ? 'una mejora' : h.percentGlobalActual > h.percentGlobalComparacion + 1 ? 'un deterioro' : 'un comportamiento estable')
+      : null;
+    frases.push(
+      dirGlobal
+        ? `En ${h.periodo.toLowerCase()}, el grupo registra ${h.percentGlobalActual}% de reseñas negativas, lo que representa ${dirGlobal} frente al ${h.percentGlobalComparacion}% de ${h.comparacion.toLowerCase()}.`
+        : `En ${h.periodo.toLowerCase()}, el grupo registra ${h.percentGlobalActual}% de reseñas negativas.`
+    );
+    
+    if (h.alertaSostenida.length > 0) {
+      const nombres = h.alertaSostenida.map(a => `${a.sucursal} (${a.percent30d}% en 30 días, ${a.percent90d}% en 90 días)`).join(', ');
+      frases.push(`Atención prioritaria: ${nombres} se mantienen en niveles críticos de forma sostenida, independientemente de si la tendencia reciente mejora o no.`);
+    }
+    
+    if (h.empeorando.length > 0) {
+      const nombres = h.empeorando.map(e => `${e.sucursal} (${e.percentAnterior}% → ${e.percentActual}%)`).join(', ');
+      frases.push(`Sucursales con tendencia a la baja: ${nombres}.`);
+    }
+    
+    if (h.mejorando.length > 0) {
+      const nombres = h.mejorando.map(m => `${m.sucursal} (${m.percentAnterior}% → ${m.percentActual}%)`).join(', ');
+      frases.push(`Sucursales que mejoraron: ${nombres}.`);
+    }
+    
+    if (h.empeorando.length === 0 && h.mejorando.length === 0 && h.alertaSostenida.length === 0) {
+      frases.push('No se identificaron cambios significativos de tendencia en este periodo.');
+    }
+    
+    return frases.join(' ');
+  }
+  
+  function redactarResumenQuejas(h) {
+    if (!h) return null;
+    const frases = [`En el corte de ${h.mesCorte}, se registraron ${h.totalQuejasMes} quejas nuevas de 1-2 estrellas en todo el grupo.`];
+    
+    if (h.focoRojo.length > 0) {
+      const nombres = h.focoRojo.map(f => `${f.sucursal} (${f.quejasNuevas})`).join(', ');
+      frases.push(`Las sucursales con mayor volumen de quejas nuevas son: ${nombres} — prioridad de intervención.`);
+    } else {
+      frases.push('No hubo quejas nuevas destacables en este corte.');
+    }
+    
+    return frases.join(' ');
+  }
+  
+  function generarResumenEjecutivo(hallazgos, contenedorId, redactorFn) {
+    const contenedor = document.getElementById(contenedorId);
+    const texto = redactorFn(hallazgos);
+    contenedor.innerHTML = texto
+      ? `<p style="margin:0; line-height:1.6; color:#2b2d42;">${texto}</p>`
+      : '<div class="placeholder" style="padding:4px 0; color:#999;">Sin datos suficientes para generar un resumen.</div>';
+  }
+  
+  function actualizarResumenResenas() {
+    generarResumenEjecutivo(calcularHallazgosResenas(), 'resumenResenasContent', redactarResumenResenas);
+  }
+  
+  function actualizarResumenQuejas() {
+    generarResumenEjecutivo(calcularHallazgosQuejas(), 'resumenQuejasContent', redactarResumenQuejas);
+  }
   
   loadData().then(() => loadQuejasData());
 </script>
