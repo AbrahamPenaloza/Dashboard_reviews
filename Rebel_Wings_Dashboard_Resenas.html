@@ -381,12 +381,9 @@
       <canvas id="managerChart" role="img" aria-label="Porcentaje de reseñas negativas por zona o gerente regional"></canvas>
     </div>
     <p style="font-size:13px; color:#8a8d99; margin-top:24px; margin-bottom:4px;">
-      Desglose por sucursal, coloreado por zona/gerente. El % es de reseñas negativas (1-2★) sobre el total de esa sucursal en el periodo seleccionado.
+      Desglose por gerente: reparto de reseñas negativas entre sus sucursales, con comentario ejecutivo de áreas de oportunidad.
     </p>
-    <div id="managerLocationLegend" style="display:flex; flex-wrap:wrap; gap:12px 20px; margin-bottom:8px; font-size:12px; color:#555;"></div>
-    <div class="chart-container" id="managerLocationChartContainer" style="height:900px;">
-      <canvas id="managerLocationChart" role="img" aria-label="Porcentaje de reseñas negativas por sucursal, coloreado por zona"></canvas>
-    </div>
+    <div id="managerZoneGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:20px; margin-top:12px;"></div>
   </div>
   
   <div class="section">
@@ -890,7 +887,7 @@
   function updateManagerSection() {
     const data = getFilteredData('_manager');
     updateManagerChart(data);
-    updateManagerLocationChart(data);
+    updateManagerZoneGrid(data);
   }
   
   function updateManagerChart(data) {
@@ -954,80 +951,131 @@
   function colorDeZona(zona) {
     return COLOR_POR_ZONA[zona] || COLOR_RESERVA;
   }
+  // Variación tonal para distinguir sucursales dentro de un mismo donut de zona
+  // (todas parten del color de la zona, con opacidad decreciente).
+  function tonoSucursal(colorBase, index, totalEnZona) {
+    const opacidad = totalEnZona <= 1 ? 1 : 0.45 + 0.55 * (1 - index / (totalEnZona - 1));
+    return colorBase + Math.round(opacidad * 255).toString(16).padStart(2, '0');
+  }
   
-  let managerLocationChart = null;
+  const managerZoneCharts = {}; // un Chart por zona, para poder destruir/recrear al refiltrar
   
-  function updateManagerLocationChart(data) {
-    const byLocation = {};
+  // Umbral desde el cual una sucursal se marca como área de oportunidad en el
+  // comentario ejecutivo. Mismo criterio de "crítico" usado en otras partes del
+  // dashboard (ver alertaSostenida en calcularHallazgosResenas: >=40%).
+  const UMBRAL_OPORTUNIDAD = 40;
+  
+  // Comentario ejecutivo 100% determinista (sin API), mismo principio que
+  // calcularHallazgosResenas/Quejas: se calculan los hechos y se redactan con
+  // plantillas fijas, para que sea instantáneo y sin costo.
+  function redactarComentarioZona(zona, sucursales, totalZona, negZona) {
+    const percentZona = totalZona > 0 ? (negZona / totalZona) * 100 : 0;
+    const conDatos = sucursales.filter(s => s.total > 0);
+    
+    if (conDatos.length === 0) {
+      return `Sin reseñas registradas para ${zona} en este periodo.`;
+    }
+    
+    const peor = [...conDatos].sort((a, b) => b.percent - a.percent)[0];
+    const enAlerta = conDatos.filter(s => s.percent >= UMBRAL_OPORTUNIDAD);
+    
+    let frase = `${zona} concentra ${negZona} reseñas negativas de ${totalZona} totales (${percentZona.toFixed(1)}%) entre sus ${conDatos.length} sucursales.`;
+    
+    if (enAlerta.length === 0) {
+      frase += ` Ninguna sucursal supera el ${UMBRAL_OPORTUNIDAD}% de negativas: zona sin focos rojos en este periodo.`;
+    } else if (enAlerta.length === 1) {
+      frase += ` Área de oportunidad: ${peor.name} concentra ${peor.percent.toFixed(1)}% de negativas (${peor.neg} de ${peor.total}), muy por encima del resto de la zona.`;
+    } else {
+      const nombres = enAlerta.slice(0, 3).map(s => `${s.name} (${s.percent.toFixed(1)}%)`).join(', ');
+      frase += ` Áreas de oportunidad: ${nombres}${enAlerta.length > 3 ? ` y ${enAlerta.length - 3} más` : ''} superan el ${UMBRAL_OPORTUNIDAD}% de negativas.`;
+    }
+    
+    return frase;
+  }
+  
+  function updateManagerZoneGrid(data) {
+    const byZone = {};
     data.forEach(row => {
+      const zone = row['Zona/Gerente'] || 'Sin asignar';
       const nombre = row.Sucursal;
       if (!nombre) return;
-      const zone = row['Zona/Gerente'] || 'Sin asignar';
-      if (!byLocation[nombre]) byLocation[nombre] = { neg: 0, total: 0, zone };
-      byLocation[nombre].neg += row['Cantidad Neg (1-2)'] || 0;
-      byLocation[nombre].total += row['Total Reseñas'] || 0;
+      if (!byZone[zone]) byZone[zone] = {};
+      if (!byZone[zone][nombre]) byZone[zone][nombre] = { neg: 0, total: 0 };
+      byZone[zone][nombre].neg += row['Cantidad Neg (1-2)'] || 0;
+      byZone[zone][nombre].total += row['Total Reseñas'] || 0;
     });
     
-    // Orden: agrupadas por zona (alfabético) y, dentro de cada zona, por % de
-    // mayor a menor -así el color agrupa visualmente y dentro del grupo se lee
-    // de peor a mejor desempeño.
-    const sorted = Object.entries(byLocation)
-      .map(([name, d]) => ({
-        name,
-        zone: d.zone,
-        total: d.total,
-        percent: d.total > 0 ? (d.neg / d.total) * 100 : 0
-      }))
-      .sort((a, b) => a.zone.localeCompare(b.zone) || b.percent - a.percent);
+    const zonas = Object.keys(byZone).sort();
+    const grid = document.getElementById('managerZoneGrid');
     
-    const ctx = document.getElementById('managerLocationChart');
-    if (managerLocationChart) managerLocationChart.destroy();
+    // Limpiar charts previos antes de reconstruir el grid
+    Object.values(managerZoneCharts).forEach(c => c.destroy());
+    Object.keys(managerZoneCharts).forEach(k => delete managerZoneCharts[k]);
     
-    // Alto dinámico: ~22px por sucursal, con piso de 400px para que no se
-    // aplaste si hay pocas sucursales en el periodo filtrado.
-    const contenedor = document.getElementById('managerLocationChartContainer');
-    contenedor.style.height = Math.max(400, sorted.length * 22) + 'px';
+    grid.innerHTML = zonas.map(zona => `
+      <div style="border:1px solid #eee; border-radius:10px; padding:16px; background:#fff;">
+        <h3 style="font-size:15px; margin:0 0 10px 0; color:#2b2d42;">${zona}</h3>
+        <div style="position:relative; height:220px;">
+          <canvas id="zoneDonut_${zona.replace(/\s+/g, '_')}"></canvas>
+        </div>
+        <p style="font-size:12.5px; color:#555; margin-top:12px; line-height:1.5;" id="zoneComentario_${zona.replace(/\s+/g, '_')}"></p>
+      </div>
+    `).join('');
     
-    managerLocationChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: sorted.map(d => `${d.name} (${d.total.toLocaleString('es-MX')})`),
-        datasets: [{
-          label: '% Reseñas negativas',
-          data: sorted.map(d => d.percent.toFixed(1)),
-          backgroundColor: sorted.map(d => colorDeZona(d.zone)),
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        indexAxis: 'y',
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const d = sorted[ctx.dataIndex];
-                return `${d.zone}: ${d.percent.toFixed(1)}% (${d.total.toLocaleString('es-MX')} reseñas)`;
+    zonas.forEach(zona => {
+      const sucursalesObj = byZone[zona];
+      const sucursales = Object.entries(sucursalesObj)
+        .map(([name, d]) => ({
+          name,
+          neg: d.neg,
+          total: d.total,
+          percent: d.total > 0 ? (d.neg / d.total) * 100 : 0
+        }))
+        .sort((a, b) => b.neg - a.neg); // el donut reparte por VOLUMEN de negativas
+      
+      const totalZona = sucursales.reduce((s, x) => s + x.total, 0);
+      const negZona = sucursales.reduce((s, x) => s + x.neg, 0);
+      
+      const colorBase = colorDeZona(zona);
+      const canvasId = `zoneDonut_${zona.replace(/\s+/g, '_')}`;
+      const ctx = document.getElementById(canvasId);
+      
+      // El donut reparte la proporción de NEGATIVAS por sucursal dentro de la
+      // zona (no el % individual de cada una) -así se ve de un vistazo qué
+      // sucursal aporta más quejas al total del gerente.
+      const conNegativas = sucursales.filter(s => s.neg > 0);
+      
+      managerZoneCharts[zona] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: conNegativas.map(s => `${s.name} (${s.percent.toFixed(0)}%)`),
+          datasets: [{
+            data: conNegativas.map(s => s.neg),
+            backgroundColor: conNegativas.map((s, i) => tonoSucursal(colorBase, i, conNegativas.length)),
+            borderWidth: 1,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const s = conNegativas[ctx.dataIndex];
+                  return `${s.name}: ${s.neg} negativas de ${s.total} (${s.percent.toFixed(1)}%)`;
+                }
               }
             }
           }
-        },
-        scales: {
-          x: { beginAtZero: true, ticks: { callback: v => v + '%' } }
         }
-      }
+      });
+      
+      const comentarioEl = document.getElementById(`zoneComentario_${zona.replace(/\s+/g, '_')}`);
+      comentarioEl.textContent = redactarComentarioZona(zona, sucursales, totalZona, negZona);
     });
-    
-    // Leyenda de colores por zona (solo las zonas presentes en este periodo)
-    const zonasPresentes = [...new Set(sorted.map(d => d.zone))].sort();
-    document.getElementById('managerLocationLegend').innerHTML = zonasPresentes.map(z => `
-      <span style="display:inline-flex; align-items:center; gap:6px;">
-        <span style="width:12px; height:12px; border-radius:2px; background:${colorDeZona(z)}; display:inline-block;"></span>
-        ${z}
-      </span>
-    `).join('');
   }
   
   function calcStats(reviews, startDate, endDate) {
