@@ -401,6 +401,12 @@
         <select id="quejasMesFilter"></select>
       </div>
       <div class="control-group">
+        <label for="quejasGerenteFilter">Gerente Regional:</label>
+        <select id="quejasGerenteFilter">
+          <option value="">Todos los gerentes (visión general)</option>
+        </select>
+      </div>
+      <div class="control-group">
         <label for="quejasYoYSucursal">Comparativo por:</label>
         <select id="quejasYoYSucursal">
           <option value="">Todas las sucursales (visión general)</option>
@@ -640,12 +646,46 @@
     select.value = String(quejasCortes.length - 1); // corte más reciente por defecto
     select.addEventListener('change', updateQuejasModule);
     
-    // Poblar selector de sucursal para el comparativo YoY, tomando nombres únicos
-    // de todos los cortes (por si alguna sucursal solo aparece en cortes antiguos o nuevos)
+    // Mapeo sucursal -> zona/gerente, construido a partir de "Métricas" (allData),
+    // que sí trae ese campo por fila. La hoja "Reseñas" (reviewsData, base de este
+    // módulo) no lo trae, así que se cruza por nombre de sucursal.
+    const mapaZona = {};
+    allData.forEach(row => {
+      if (row.Sucursal && row['Zona/Gerente']) mapaZona[row.Sucursal] = row['Zona/Gerente'];
+    });
+    window._quejasMapaZona = mapaZona; // reutilizado por updateQuejasModule y populateQuejasSucursalFilter
+    
+    const gerenteSelect = document.getElementById('quejasGerenteFilter');
+    const gerentesUnicos = [...new Set(Object.values(mapaZona))].sort();
+    gerenteSelect.innerHTML = '<option value="">Todos los gerentes (visión general)</option>' +
+      gerentesUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
+    gerenteSelect.addEventListener('change', () => {
+      // Al cambiar de gerente, se reinicia el filtro de sucursal (puede que la
+      // sucursal antes seleccionada ya no pertenezca al gerente nuevo) y se
+      // re-puebla con solo las sucursales de ese gerente.
+      document.getElementById('quejasYoYSucursal').value = '';
+      populateQuejasSucursalFilter();
+      updateQuejasModule();
+    });
+    
+    populateQuejasSucursalFilter();
+  }
+  
+  // Puebla "Comparativo por" (sucursal) según el Gerente Regional elegido: si hay
+  // gerente seleccionado, solo se listan sus sucursales -así la combinación de
+  // ambos filtros siempre tiene sentido (no se puede elegir una sucursal ajena
+  // al gerente ya filtrado).
+  function populateQuejasSucursalFilter() {
+    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const mapaZona = window._quejasMapaZona || {};
+    
     const sucursalSelect = document.getElementById('quejasYoYSucursal');
     const nombresUnicos = new Set();
     quejasCortes.forEach(c => Object.keys(c.sucursales).forEach(n => nombresUnicos.add(n)));
-    const nombresOrdenados = [...nombresUnicos].sort();
+    let nombresOrdenados = [...nombresUnicos].sort();
+    if (gerenteFiltro) {
+      nombresOrdenados = nombresOrdenados.filter(n => mapaZona[n] === gerenteFiltro);
+    }
     sucursalSelect.innerHTML = '<option value="">Todas las sucursales (visión general)</option>' +
       nombresOrdenados.map(n => `<option value="${n}">${n}</option>`).join('');
     sucursalSelect.addEventListener('change', updateQuejasModule);
@@ -657,15 +697,25 @@
     const anterior = quejasCortes[idx - 1]; // corte inmediato previo, para el neto mensual
     if (!actual) return;
     
+    // Filtro de Gerente Regional: acota TODO el módulo (Top 5, YoY, tendencia) al
+    // conjunto de sucursales de ese gerente. Se combina con el filtro de sucursal
+    // individual ("Comparativo por"), que ya viene restringido a las sucursales
+    // de ese gerente por populateQuejasSucursalFilter.
+    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const mapaZona = window._quejasMapaZona || {};
+    const perteneceAGerente = (nombre) => !gerenteFiltro || mapaZona[nombre] === gerenteFiltro;
+    
     // Neto mensual = total acumulado del corte actual - total acumulado del corte anterior
     // Igual para 1★ y 2★ (para saber cuántas quejas NUEVAS de 1-2 estrellas hubo)
-    const netos = Object.entries(actual.sucursales).map(([nombre, datos]) => {
-      const prev = anterior ? anterior.sucursales[nombre] : null;
-      const negActual = (datos.r1 || 0) + (datos.r2 || 0);
-      const negPrev = prev ? (prev.r1 || 0) + (prev.r2 || 0) : 0;
-      const negNeto = prev ? Math.max(0, negActual - negPrev) : negActual;
-      return { nombre, negNeto };
-    }).filter(x => x.negNeto > 0);
+    const netos = Object.entries(actual.sucursales)
+      .filter(([nombre]) => perteneceAGerente(nombre))
+      .map(([nombre, datos]) => {
+        const prev = anterior ? anterior.sucursales[nombre] : null;
+        const negActual = (datos.r1 || 0) + (datos.r2 || 0);
+        const negPrev = prev ? (prev.r1 || 0) + (prev.r2 || 0) : 0;
+        const negNeto = prev ? Math.max(0, negActual - negPrev) : negActual;
+        return { nombre, negNeto };
+      }).filter(x => x.negNeto > 0);
     
     netos.sort((a, b) => b.negNeto - a.negNeto);
     const top5 = netos.slice(0, 5);
@@ -687,12 +737,14 @@
       // Para el corte actual ya tenemos `netos` (arriba). Necesitamos el mismo cálculo
       // para el corte del año anterior, usando SU propio corte previo inmediato.
       // Si se pasa `sucursalFiltro`, solo se suma esa sucursal en vez del total del grupo.
+      // Si hay `gerenteFiltro` activo (closure de arriba), también se acota a ese gerente.
       const netoDeCorte = (corte, sucursalFiltro) => {
         const idxCorte = quejasCortes.indexOf(corte);
         const prevCorte = quejasCortes[idxCorte - 1];
-        const entradas = sucursalFiltro
+        let entradas = sucursalFiltro
           ? Object.entries(corte.sucursales).filter(([nombre]) => nombre === sucursalFiltro)
           : Object.entries(corte.sucursales);
+        entradas = entradas.filter(([nombre]) => perteneceAGerente(nombre));
         return entradas.reduce((sum, [nombre, datos]) => {
           const negActual = (datos.r1 || 0) + (datos.r2 || 0);
           const prevDatos = prevCorte ? prevCorte.sucursales[nombre] : null;
@@ -703,8 +755,9 @@
       };
       
       const sucursalSeleccionada = document.getElementById('quejasYoYSucursal').value;
-      document.getElementById('quejasYoYSubtitle').textContent = sucursalSeleccionada
-        ? `Comparativo de ${sucursalSeleccionada} contra el mismo mes del año pasado`
+      const etiquetaFiltro = sucursalSeleccionada || (gerenteFiltro ? `sucursales de ${gerenteFiltro}` : '');
+      document.getElementById('quejasYoYSubtitle').textContent = etiquetaFiltro
+        ? `Comparativo de ${etiquetaFiltro} contra el mismo mes del año pasado`
         : 'Comparativo del corte seleccionado contra el mismo mes del año pasado (todas las sucursales)';
       
       const netoActual = netoDeCorte(actual, sucursalSeleccionada);
@@ -741,11 +794,14 @@
     // corte anterior es de 2019), para no perder precisión en el primer punto.
     const cortesVisibles = quejasCortes.filter(c => c.date.getFullYear() >= 2020);
     const sucursalFiltro = document.getElementById('quejasYoYSucursal').value;
+    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const mapaZona = window._quejasMapaZona || {};
     
     const sumaNeg = (sucursalesObj) => {
-      const entradas = sucursalFiltro
+      let entradas = sucursalFiltro
         ? Object.entries(sucursalesObj).filter(([nombre]) => nombre === sucursalFiltro)
         : Object.entries(sucursalesObj);
+      if (gerenteFiltro) entradas = entradas.filter(([nombre]) => mapaZona[nombre] === gerenteFiltro);
       return entradas.reduce((s, [, d]) => s + (d.r1 || 0) + (d.r2 || 0), 0);
     };
     
@@ -761,8 +817,9 @@
     
     if (quejasChart) quejasChart.destroy();
     const ctx = document.getElementById('quejasTrendChart').getContext('2d');
-    const labelSerie = sucursalFiltro
-      ? `Reseñas 1-2⭐ nuevas por corte (${sucursalFiltro})`
+    const partesEtiqueta = [sucursalFiltro, gerenteFiltro].filter(Boolean);
+    const labelSerie = partesEtiqueta.length
+      ? `Reseñas 1-2⭐ nuevas por corte (${partesEtiqueta.join(' — ')})`
       : 'Reseñas 1-2⭐ nuevas por corte (todo el grupo)';
     quejasChart = new Chart(ctx, {
       type: 'line',
@@ -1209,19 +1266,27 @@
     const anterior = quejasCortes[idx - 1];
     if (!actual) return null;
     
-    const netos = Object.entries(actual.sucursales).map(([nombre, datos]) => {
-      const prev = anterior ? anterior.sucursales[nombre] : null;
-      const negActual = (datos.r1 || 0) + (datos.r2 || 0);
-      const negPrev = prev ? (prev.r1 || 0) + (prev.r2 || 0) : 0;
-      const negNeto = prev ? Math.max(0, negActual - negPrev) : negActual;
-      return { sucursal: nombre, quejasNuevas: negNeto };
-    }).filter(x => x.quejasNuevas > 0).sort((a, b) => b.quejasNuevas - a.quejasNuevas);
+    // Mismo filtro de Gerente Regional que el resto del módulo, para que el
+    // resumen ejecutivo no reporte un total distinto al que se ve en pantalla.
+    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const mapaZona = window._quejasMapaZona || {};
+    
+    const netos = Object.entries(actual.sucursales)
+      .filter(([nombre]) => !gerenteFiltro || mapaZona[nombre] === gerenteFiltro)
+      .map(([nombre, datos]) => {
+        const prev = anterior ? anterior.sucursales[nombre] : null;
+        const negActual = (datos.r1 || 0) + (datos.r2 || 0);
+        const negPrev = prev ? (prev.r1 || 0) + (prev.r2 || 0) : 0;
+        const negNeto = prev ? Math.max(0, negActual - negPrev) : negActual;
+        return { sucursal: nombre, quejasNuevas: negNeto };
+      }).filter(x => x.quejasNuevas > 0).sort((a, b) => b.quejasNuevas - a.quejasNuevas);
     
     const focoRojo = netos.slice(0, 3);
     const totalQuejasMes = netos.reduce((s, n) => s + n.quejasNuevas, 0);
     
     return {
       mesCorte: actual.label,
+      gerenteFiltro,
       totalQuejasMes,
       focoRojo
     };
@@ -1588,7 +1653,8 @@
   
   function redactarResumenQuejas(h) {
     if (!h) return null;
-    const frases = [`En el corte de ${h.mesCorte}, se registraron ${h.totalQuejasMes} quejas nuevas de 1-2 estrellas en todo el grupo.`];
+    const ambito = h.gerenteFiltro ? `en la zona de ${h.gerenteFiltro}` : 'en todo el grupo';
+    const frases = [`En el corte de ${h.mesCorte}, se registraron ${h.totalQuejasMes} quejas nuevas de 1-2 estrellas ${ambito}.`];
     
     if (h.focoRojo.length > 0) {
       const nombres = h.focoRojo.map(f => `${f.sucursal} (${f.quejasNuevas})`).join(', ');
