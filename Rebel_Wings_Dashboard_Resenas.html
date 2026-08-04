@@ -541,12 +541,6 @@
     }
   }
   
-  // Fecha límite de transición: el primer corte calculado en vivo (fecha calendario)
-  // debe ser DESPUÉS de este mes. Este mes y todos los anteriores usan corte "día 7"
-  // para quedar alineados con el histórico de la bitácora manual de Carlos.
-  // Mes de transición: julio 2026 (el mes en que se hizo este cambio).
-  const MES_TRANSICION = new Date(2026, 6, 1); // 1 julio 2026 (mes 6 = julio, 0-indexed)
-  
   function calcularCortesDesdeReseñas() {
     if (!reviewsData || reviewsData.length === 0) return [];
     
@@ -567,27 +561,25 @@
     
     const fechaMin = new Date(Math.min(...fechasValidas));
     
-    // Generar la lista de cortes mes a mes desde el primer mes con datos hasta hoy
+    // Generar la lista de cortes mes a mes desde el primer mes con datos hasta hoy.
+    // Corte calendario puro para todo el histórico (fin de mes, o "hoy" si es el
+    // mes en curso). Antes existía un corte "día 7" para meses <= julio 2026, para
+    // alinear con la bitácora manual de Carlos durante la transición; ya no aplica
+    // porque los datos vienen directo de Google y la bitácora dejó de ser la
+    // referencia. Se recalculó todo el histórico a corte calendario para que la
+    // serie sea consistente de punta a punta (sin el "mes costal" que absorbía
+    // semanas de dos meses distintos en la transición día-7 → calendario).
     const cortes = [];
     let cursor = new Date(fechaMin.getFullYear(), fechaMin.getMonth(), 1);
     
     while (cursor <= hoy) {
-      const esMesTranscisionOAnterior = cursor <= MES_TRANSICION;
-      let fechaCorte, labelMes;
-      
-      if (esMesTranscisionOAnterior) {
-        // Corte "día 7" del mes, para alinear con el histórico de la bitácora
-        fechaCorte = new Date(cursor.getFullYear(), cursor.getMonth(), 7, 23, 59, 59);
-      } else {
-        // Fecha calendario: fin de mes si ya pasó, o "hoy" si es el mes en curso
-        const finDeMes = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59);
-        fechaCorte = finDeMes < hoy ? finDeMes : hoy;
-      }
+      const finDeMes = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59);
+      let fechaCorte = finDeMes < hoy ? finDeMes : hoy;
       
       if (fechaCorte > hoy) fechaCorte = hoy; // nunca cortar en el futuro
       
       const nombreMes = cursor.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-      labelMes = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+      const labelMes = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
       
       // Acumulado real: todas las reseñas con fecha <= fechaCorte
       const sucursales = {};
@@ -1365,13 +1357,24 @@
       frases.push(`Atención prioritaria: ${nombres} se mantienen en niveles críticos de forma sostenida, independientemente de si la tendencia reciente mejora o no.`);
     }
     
+    // Nombres ya mencionados en alertaSostenida, para aclarar (no ocultar) cuando
+    // una sucursal reaparece en empeorando/mejorando: es el mismo caso visto desde
+    // otro ángulo (nivel sostenido vs. tendencia relativa), no un dato duplicado.
+    const nombresAlerta = new Set(h.alertaSostenida.map(a => a.sucursal));
+    
     if (h.empeorando.length > 0) {
-      const nombres = h.empeorando.map(e => `${e.sucursal} (${e.percentAnterior}% → ${e.percentActual}%)`).join(', ');
+      const nombres = h.empeorando.map(e => {
+        const base = `${e.sucursal} (${e.percentAnterior}% → ${e.percentActual}%)`;
+        return nombresAlerta.has(e.sucursal) ? `${base}, ya listada arriba en alerta sostenida` : base;
+      }).join(', ');
       frases.push(`Sucursales con tendencia a la baja: ${nombres}.`);
     }
     
     if (h.mejorando.length > 0) {
-      const nombres = h.mejorando.map(m => `${m.sucursal} (${m.percentAnterior}% → ${m.percentActual}%)`).join(', ');
+      const nombres = h.mejorando.map(m => {
+        const base = `${m.sucursal} (${m.percentAnterior}% → ${m.percentActual}%)`;
+        return nombresAlerta.has(m.sucursal) ? `${base}, aunque sigue en alerta sostenida arriba` : base;
+      }).join(', ');
       frases.push(`Sucursales que mejoraron: ${nombres}.`);
     }
     
