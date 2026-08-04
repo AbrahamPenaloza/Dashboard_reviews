@@ -1249,6 +1249,52 @@
   // Conecta un selector de periodo (con sus inputs de rango personalizado) a una
   // función de refresco. Se usa tanto para el filtro global como para los 3
   // filtros de sección independientes.
+  //
+  // Interconectados: cambiar CUALQUIERA de los 4 (global, _top, _theme, _manager)
+  // sincroniza el mismo valor de periodo (y rango personalizado, si aplica) en los
+  // otros 3, y refresca las 4 secciones. Cada selector se mantiene visible por
+  // separado -no se ocultan ni se fusionan en uno solo- así que si más adelante
+  // se quiere volver a un filtrado independiente por sección, basta con quitar
+  // esta sincronización sin tocar el resto de la lógica. Deliberadamente NO
+  // incluye "Mes de corte" de Quejas Generales (quejasMesFilter): ese filtro es
+  // de naturaleza distinta (mes de corte puntual, no rango de días) y se deja
+  // independiente a propósito.
+  const TODOS_LOS_SUFIJOS = ['', '_top', '_theme', '_manager'];
+  const REFRESH_POR_SUFIJO = {
+    '': () => updateDashboard(),
+    '_top': () => updateTopSection(),
+    '_theme': () => updateThemeSection(),
+    '_manager': () => updateManagerSection()
+  };
+  let sincronizandoPeriodo = false; // evita loops de eventos al propagar el cambio
+  
+  function sincronizarPeriodoDesde(suffixOrigen) {
+    if (sincronizandoPeriodo) return;
+    sincronizandoPeriodo = true;
+    
+    const periodOrigen = document.getElementById('period' + suffixOrigen);
+    const startOrigen = document.getElementById('customStart' + suffixOrigen);
+    const endOrigen = document.getElementById('customEnd' + suffixOrigen);
+    
+    TODOS_LOS_SUFIJOS.filter(s => s !== suffixOrigen).forEach(suffix => {
+      const periodEl = document.getElementById('period' + suffix);
+      const startEl = document.getElementById('customStart' + suffix);
+      const endEl = document.getElementById('customEnd' + suffix);
+      const rangeGroupEl = document.getElementById('customRangeGroup' + suffix);
+      
+      periodEl.value = periodOrigen.value;
+      startEl.value = startOrigen.value;
+      endEl.value = endOrigen.value;
+      rangeGroupEl.style.display = periodOrigen.value === 'custom' ? 'flex' : 'none';
+    });
+    
+    sincronizandoPeriodo = false;
+  }
+  
+  function refrescarTodasLasSecciones() {
+    TODOS_LOS_SUFIJOS.forEach(suffix => REFRESH_POR_SUFIJO[suffix]());
+  }
+  
   function wirePeriodSelector(suffix, refreshFn) {
     const periodEl = document.getElementById('period' + suffix);
     const startEl = document.getElementById('customStart' + suffix);
@@ -1258,13 +1304,16 @@
     periodEl.addEventListener('change', () => {
       const isCustom = periodEl.value === 'custom';
       rangeGroupEl.style.display = isCustom ? 'flex' : 'none';
-      if (!isCustom || (startEl.value && endEl.value)) refreshFn();
+      sincronizarPeriodoDesde(suffix);
+      if (!isCustom || (startEl.value && endEl.value)) refrescarTodasLasSecciones();
     });
     startEl.addEventListener('change', () => {
-      if (startEl.value && endEl.value) refreshFn();
+      sincronizarPeriodoDesde(suffix);
+      if (startEl.value && endEl.value) refrescarTodasLasSecciones();
     });
     endEl.addEventListener('change', () => {
-      if (startEl.value && endEl.value) refreshFn();
+      sincronizarPeriodoDesde(suffix);
+      if (startEl.value && endEl.value) refrescarTodasLasSecciones();
     });
   }
   
