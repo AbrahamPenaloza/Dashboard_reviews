@@ -380,6 +380,13 @@
     <div class="chart-container">
       <canvas id="managerChart" role="img" aria-label="Porcentaje de reseñas negativas por zona o gerente regional"></canvas>
     </div>
+    <p style="font-size:13px; color:#8a8d99; margin-top:24px; margin-bottom:4px;">
+      Desglose por sucursal, coloreado por zona/gerente. El % es de reseñas negativas (1-2★) sobre el total de esa sucursal en el periodo seleccionado.
+    </p>
+    <div id="managerLocationLegend" style="display:flex; flex-wrap:wrap; gap:12px 20px; margin-bottom:8px; font-size:12px; color:#555;"></div>
+    <div class="chart-container" id="managerLocationChartContainer" style="height:900px;">
+      <canvas id="managerLocationChart" role="img" aria-label="Porcentaje de reseñas negativas por sucursal, coloreado por zona"></canvas>
+    </div>
   </div>
   
   <div class="section">
@@ -881,7 +888,9 @@
   }
   
   function updateManagerSection() {
-    updateManagerChart(getFilteredData('_manager'));
+    const data = getFilteredData('_manager');
+    updateManagerChart(data);
+    updateManagerLocationChart(data);
   }
   
   function updateManagerChart(data) {
@@ -896,6 +905,7 @@
     const sorted = Object.entries(byZone)
       .map(([name, d]) => ({
         name,
+        total: d.total,
         percent: d.total > 0 ? (d.neg / d.total) * 100 : 0
       }))
       .sort((a, b) => b.percent - a.percent);
@@ -906,7 +916,9 @@
     managerChart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: sorted.map(d => d.name),
+        // Total junto al nombre del gerente/zona, para no perder contexto de
+        // volumen al ver solo el % agregado (ej. "Israel (1,240)").
+        labels: sorted.map(d => `${d.name} (${d.total.toLocaleString('es-MX')})`),
         datasets: [{
           label: '% Reseñas negativas',
           data: sorted.map(d => d.percent.toFixed(1)),
@@ -924,6 +936,98 @@
         }
       }
     });
+  }
+  
+  // Paleta fija por zona/gerente: mismo color siempre para la misma zona, sin
+  // importar cuántas zonas distintas aparezcan en el periodo filtrado. Si aparece
+  // una zona nueva no listada aquí, cae en el color de reserva al final.
+  const COLOR_POR_ZONA = {
+    'Israel': '#e63946',
+    'Edith': '#2a9d8f',
+    'Carlos': '#e9c46a',
+    'Chris': '#457b9d',
+    'Román': '#9b5de5',
+    'Zona San Luis': '#f4a261',
+    'Sin asignar': '#8a8d99'
+  };
+  const COLOR_RESERVA = '#264653';
+  function colorDeZona(zona) {
+    return COLOR_POR_ZONA[zona] || COLOR_RESERVA;
+  }
+  
+  let managerLocationChart = null;
+  
+  function updateManagerLocationChart(data) {
+    const byLocation = {};
+    data.forEach(row => {
+      const nombre = row.Sucursal;
+      if (!nombre) return;
+      const zone = row['Zona/Gerente'] || 'Sin asignar';
+      if (!byLocation[nombre]) byLocation[nombre] = { neg: 0, total: 0, zone };
+      byLocation[nombre].neg += row['Cantidad Neg (1-2)'] || 0;
+      byLocation[nombre].total += row['Total Reseñas'] || 0;
+    });
+    
+    // Orden: agrupadas por zona (alfabético) y, dentro de cada zona, por % de
+    // mayor a menor -así el color agrupa visualmente y dentro del grupo se lee
+    // de peor a mejor desempeño.
+    const sorted = Object.entries(byLocation)
+      .map(([name, d]) => ({
+        name,
+        zone: d.zone,
+        total: d.total,
+        percent: d.total > 0 ? (d.neg / d.total) * 100 : 0
+      }))
+      .sort((a, b) => a.zone.localeCompare(b.zone) || b.percent - a.percent);
+    
+    const ctx = document.getElementById('managerLocationChart');
+    if (managerLocationChart) managerLocationChart.destroy();
+    
+    // Alto dinámico: ~22px por sucursal, con piso de 400px para que no se
+    // aplaste si hay pocas sucursales en el periodo filtrado.
+    const contenedor = document.getElementById('managerLocationChartContainer');
+    contenedor.style.height = Math.max(400, sorted.length * 22) + 'px';
+    
+    managerLocationChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => `${d.name} (${d.total.toLocaleString('es-MX')})`),
+        datasets: [{
+          label: '% Reseñas negativas',
+          data: sorted.map(d => d.percent.toFixed(1)),
+          backgroundColor: sorted.map(d => colorDeZona(d.zone)),
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const d = sorted[ctx.dataIndex];
+                return `${d.zone}: ${d.percent.toFixed(1)}% (${d.total.toLocaleString('es-MX')} reseñas)`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: v => v + '%' } }
+        }
+      }
+    });
+    
+    // Leyenda de colores por zona (solo las zonas presentes en este periodo)
+    const zonasPresentes = [...new Set(sorted.map(d => d.zone))].sort();
+    document.getElementById('managerLocationLegend').innerHTML = zonasPresentes.map(z => `
+      <span style="display:inline-flex; align-items:center; gap:6px;">
+        <span style="width:12px; height:12px; border-radius:2px; background:${colorDeZona(z)}; display:inline-block;"></span>
+        ${z}
+      </span>
+    `).join('');
   }
   
   function calcStats(reviews, startDate, endDate) {
