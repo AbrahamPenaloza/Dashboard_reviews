@@ -951,6 +951,14 @@
   function calcComparisonStats(reviews, selStart, durationMs) {
     const mode = document.getElementById('compareMode').value;
     
+    // Con "Todo el tiempo" no existe un "periodo anterior" real: selStart es un
+    // piso artificial (2000-01-01), así que restarle durationMs cae en fechas
+    // sin datos (~1974) y siempre da "sin datos". La comparación no aplica aquí
+    // por definición, así que se corta antes de calcular un rango sin sentido.
+    if (document.getElementById('period').value === 'all') {
+      return { percent: null, total: 0, neg: 0, na: true };
+    }
+    
     if (mode === 'avg3') {
       const percents = [];
       for (let i = 1; i <= 3; i++) {
@@ -995,7 +1003,9 @@
       const sComparacion = calcComparisonStats(reviews, selStart, durationMs);
       
       let trend = 'flat';
-      if (sSel.percent !== null && sComparacion.percent !== null) {
+      if (sComparacion.na) {
+        trend = 'na';
+      } else if (sSel.percent !== null && sComparacion.percent !== null) {
         if (sSel.percent < sComparacion.percent - 2) trend = 'up';
         else if (sSel.percent > sComparacion.percent + 2) trend = 'down';
       }
@@ -1095,12 +1105,15 @@
   
   function renderComparisonTable(rows) {
     const fmt = (s) => s.total === 0 ? '<span style="color:#ccc;">Sin datos</span>' : `${s.total} / <strong>${s.percent.toFixed(0)}%</strong>`;
-    const trendIcon = { up: '▲ Mejorando', down: '▼ Empeorando', flat: '— Estable' };
-    const trendClass = { up: 'trend-up', down: 'trend-down', flat: 'trend-flat' };
+    const trendIcon = { up: '▲ Mejorando', down: '▼ Empeorando', flat: '— Estable', na: '— N/A' };
+    const trendClass = { up: 'trend-up', down: 'trend-down', flat: 'trend-flat', na: 'trend-flat' };
     
     document.getElementById('comparisonTableBody').innerHTML = rows.map(r => {
       const selPct = r.sSel.percent !== null ? r.sSel.percent.toFixed(1) + '%' : 'sin datos';
-      const compPct = r.sComparacion.percent !== null ? r.sComparacion.percent.toFixed(1) + '%' : 'sin datos';
+      // Si sComparacion viene marcado como "na" (periodo = Todo el tiempo), el
+      // texto aclara que no aplica comparación, en vez de sugerir un dato faltante.
+      const compPct = r.sComparacion.na ? 'no aplica ("Todo el tiempo")'
+        : r.sComparacion.percent !== null ? r.sComparacion.percent.toFixed(1) + '%' : 'sin datos';
       const tooltip = `Periodo actual: ${selPct} · Comparación: ${compPct}`;
       return `
       <tr>
