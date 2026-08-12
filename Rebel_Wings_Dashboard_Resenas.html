@@ -192,6 +192,90 @@
     .top-list { grid-template-columns: 1fr; grid-template-areas: unset; }
     .controls { flex-direction: column; align-items: flex-start; }
   }
+
+  /* --- Sección: Respuestas a Reseñas --- */
+  .resp-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .resp-kpi-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 18px;
+    text-align: center;
+  }
+  .resp-kpi-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .resp-kpi-value.pendiente { color: #e65100; }
+  .resp-kpi-value.aprobada { color: #1565c0; }
+  .resp-kpi-value.publicada { color: #2e7d32; }
+  .resp-kpi-label { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .resp-card {
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .resp-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .resp-card-title { font-weight: 600; font-size: 14px; }
+  .resp-card-folio { font-size: 12px; color: #999; font-weight: 400; }
+  .resp-status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+  .resp-status-badge.pendiente { background: #fff3e0; color: #e65100; }
+  .resp-status-badge.aprobada { background: #e3f2fd; color: #1565c0; }
+  .resp-status-badge.publicada { background: #e8f5e9; color: #2e7d32; }
+  .resp-original-text {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 10px;
+    padding-left: 10px;
+    border-left: 3px solid #f0f0f0;
+  }
+  .resp-suggested-text {
+    font-size: 14px;
+    color: #2b2d42;
+    background: #fafafa;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .resp-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .resp-meta { font-size: 12px; color: #999; }
+  .btn-aprobar {
+    background: #e63946;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-aprobar:hover { background: #c62839; }
+  .btn-aprobar:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-aprobar.loading { background: #999; cursor: wait; }
 </style>
 </head>
 <body>
@@ -456,6 +540,44 @@
       <div class="placeholder">Selecciona una sucursal para ver sus reseñas.</div>
     </div>
   </div>
+
+  <div class="section">
+    <h2>📮 Respuestas a Reseñas</h2>
+    <div class="resp-kpi-grid">
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value pendiente" id="respKpiPendientes">--</div>
+        <div class="resp-kpi-label">Pendientes de aprobar</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value aprobada" id="respKpiAprobadas">--</div>
+        <div class="resp-kpi-label">Aprobadas (por publicar)</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value publicada" id="respKpiPublicadas">--</div>
+        <div class="resp-kpi-label">Publicadas</div>
+      </div>
+    </div>
+    <div class="controls" style="margin-bottom: 20px;">
+      <div class="control-group">
+        <label for="respEstadoFilter">Estado:</label>
+        <select id="respEstadoFilter">
+          <option value="pendiente">Pendientes de aprobar</option>
+          <option value="aprobada">Aprobadas (por publicar)</option>
+          <option value="publicada">Publicadas</option>
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="respGerenteFilter">Zona/Gerente:</label>
+        <select id="respGerenteFilter">
+          <option value="">Todos los gerentes</option>
+        </select>
+      </div>
+    </div>
+    <div id="respList">
+      <div class="placeholder">Cargando respuestas…</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -464,6 +586,10 @@
   
   const BITACORA_SHEET_ID = '1nYJWZsSO0OJEOzKtISjj6tBl9nDFnWIhLrRZGS1dC5Q';
   const BITACORA_SHEET_NAME = 'CALIFICACION X SUCURSAL GMB';
+
+  // Web App de Apps Script (doPost) que escribe "Sí" en Aprobado_Para_Publicar.
+  // Publicada con acceso "Solo yo" — solo funciona con tu sesión de Google activa.
+  const APROBACION_WEBAPP_URL = 'https://script.google.com/a/macros/rebelwings.mx/s/AKfycbw53TWdQHaMB0zOK7PskfRdbywlRvUR9g6r_LxsUmVCu_kz6X8qPxn5x8GKH1aUaMlR/exec';
   
   let allData = [];
   let reviewsData = [];
@@ -1600,6 +1726,145 @@
   
   document.getElementById('reviewLocationFilter').addEventListener('change', renderReviews);
   document.getElementById('reviewRatingFilter').addEventListener('change', renderReviews);
+
+  // --- Sección: Respuestas a Reseñas ---
+  //
+  // Reutiliza reviewsData (hoja "Reseñas"), que ya trae Respuesta_Sugerida,
+  // Folio_Respuesta, Aprobado_Para_Publicar y Estado — no requiere un fetch
+  // nuevo. El estado visible de cada reseña se deriva así:
+  //   Publicada   -> Estado === 'Respondido'
+  //   Aprobada    -> Aprobado_Para_Publicar === 'Sí' y Estado !== 'Respondido'
+  //   Pendiente   -> hay Respuesta_Sugerida, pero no está aprobada ni publicada
+  // Solo se consideran filas con Respuesta_Sugerida no vacía: son las únicas
+  // que participan en este flujo (RespuestasResenas_AppsScript.gs solo genera
+  // texto para negativas de 1-2 estrellas sin respuesta previa).
+  function clasificarEstadoRespuesta(r) {
+    if (r.Estado === 'Respondido') return 'publicada';
+    if (r['Aprobado_Para_Publicar'] === 'Sí') return 'aprobada';
+    return 'pendiente';
+  }
+
+  function getRespuestasConSugerencia() {
+    return reviewsData.filter(r => (r['Respuesta_Sugerida'] || '').toString().trim() !== '');
+  }
+
+  function populateRespGerenteFilter() {
+    const mapaZona = window._quejasMapaZona || {};
+    const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
+    const select = document.getElementById('respGerenteFilter');
+    const valorPrevio = select.value;
+    select.innerHTML = '<option value="">Todos los gerentes</option>' +
+      gerentesUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
+    select.value = valorPrevio || '';
+  }
+
+  function updateRespKpis() {
+    const todas = getRespuestasConSugerencia();
+    const counts = { pendiente: 0, aprobada: 0, publicada: 0 };
+    todas.forEach(r => { counts[clasificarEstadoRespuesta(r)]++; });
+    document.getElementById('respKpiPendientes').textContent = counts.pendiente;
+    document.getElementById('respKpiAprobadas').textContent = counts.aprobada;
+    document.getElementById('respKpiPublicadas').textContent = counts.publicada;
+  }
+
+  function renderRespuestas() {
+    const estadoFiltro = document.getElementById('respEstadoFilter').value;
+    const gerenteFiltro = document.getElementById('respGerenteFilter').value;
+    const mapaZona = window._quejasMapaZona || {};
+    const container = document.getElementById('respList');
+
+    let filtered = getRespuestasConSugerencia();
+    if (estadoFiltro) filtered = filtered.filter(r => clasificarEstadoRespuesta(r) === estadoFiltro);
+    if (gerenteFiltro) filtered = filtered.filter(r => mapaZona[r['Nombre de sucursal']] === gerenteFiltro);
+
+    filtered.sort((a, b) => (parseFecha(b.Fecha) || 0) - (parseFecha(a.Fecha) || 0));
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="placeholder">No hay respuestas para este filtro.</div>';
+      return;
+    }
+
+    const etiquetaEstado = { pendiente: 'Pendiente', aprobada: 'Aprobada', publicada: 'Publicada' };
+
+    container.innerHTML = filtered.slice(0, 50).map(r => {
+      const estado = clasificarEstadoRespuesta(r);
+      const stars = '★'.repeat(r['Calificación'] || 0) + '☆'.repeat(5 - (r['Calificación'] || 0));
+      const fechaObj = parseFecha(r.Fecha);
+      const fecha = fechaObj ? fechaObj.toLocaleDateString('es-MX') : '';
+      const textoOriginal = r['Texto de la reseña'] || '(Sin comentario escrito)';
+      const idResena = r['ID reseña'] || '';
+      const folio = r['Folio_Respuesta'] || '';
+
+      const botonAccion = estado === 'pendiente'
+        ? `<button class="btn-aprobar" data-id-resena="${idResena}" onclick="aprobarRespuesta(this, '${idResena}')">Aprobar</button>`
+        : '';
+
+      return `
+        <div class="resp-card" id="resp-card-${idResena}">
+          <div class="resp-card-header">
+            <div>
+              <span class="resp-card-title">${r['Nombre de sucursal'] || ''} · ${r.Autor || 'Anónimo'}</span>
+              ${folio ? `<span class="resp-card-folio"> · ${folio}</span>` : ''}
+            </div>
+            <span class="resp-status-badge ${estado}">${etiquetaEstado[estado]}</span>
+          </div>
+          <div class="review-meta">
+            <span>${fecha}</span>
+            <span class="review-stars">${stars}</span>
+            <span class="review-tag">${r.Tema || 'Sin tema'}</span>
+          </div>
+          <div class="resp-original-text">${textoOriginal}</div>
+          <div class="resp-suggested-text">${r['Respuesta_Sugerida']}</div>
+          <div class="resp-card-footer">
+            <span class="resp-meta"></span>
+            ${botonAccion}
+          </div>
+        </div>
+      `;
+    }).join('') + (filtered.length > 50 ? `<div class="placeholder">Mostrando 50 de ${filtered.length}.</div>` : '');
+  }
+
+  // Llama a la Web App (doPost) para marcar "Sí" en Aprobado_Para_Publicar.
+  // Requiere que quien haga clic tenga sesión de Google activa con acceso
+  // (la Web App está publicada con "Quién tiene acceso: Solo yo").
+  // La publicación real en Google sigue corriendo manual desde Apps Script
+  // (publicarRespuestasAprobadas) — este botón solo aprueba, no publica.
+  async function aprobarRespuesta(boton, idResena) {
+    boton.disabled = true;
+    boton.classList.add('loading');
+    boton.textContent = 'Aprobando…';
+    try {
+      const response = await fetch(APROBACION_WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' }, // evita preflight OPTIONS, que Apps Script Web Apps no maneja
+        body: JSON.stringify({ idResena, accion: 'aprobar' })
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Error desconocido al aprobar.');
+      }
+      // Refleja el cambio localmente sin esperar a un reload completo del Sheet
+      const fila = reviewsData.find(r => r['ID reseña'] === idResena);
+      if (fila) fila['Aprobado_Para_Publicar'] = 'Sí';
+      updateRespKpis();
+      renderRespuestas();
+    } catch (error) {
+      console.error('Error al aprobar:', error);
+      boton.disabled = false;
+      boton.classList.remove('loading');
+      boton.textContent = 'Reintentar';
+      alert('No se pudo aprobar: ' + error.message + '\n\nVerifica tu sesión de Google (rebelwings.mx) e intenta de nuevo.');
+    }
+  }
+
+  function updateRespSection() {
+    populateRespGerenteFilter();
+    updateRespKpis();
+    renderRespuestas();
+  }
+
+  document.getElementById('respEstadoFilter').addEventListener('change', renderRespuestas);
+  document.getElementById('respGerenteFilter').addEventListener('change', renderRespuestas);
   
   // Genera el resumen ejecutivo con plantillas de texto fijas, sin llamar a
   // ninguna API externa (sin costo, respuesta instantánea). Toma los mismos
@@ -1682,7 +1947,10 @@
     generarResumenEjecutivo(calcularHallazgosQuejas(), 'resumenQuejasContent', redactarResumenQuejas);
   }
   
-  loadData().then(() => loadQuejasData());
+  // updateRespSection() se llama al final, después de loadQuejasData(), porque
+  // depende de window._quejasMapaZona (mapa Sucursal -> Zona/Gerente), que esa
+  // función es quien lo construye (dentro de populateQuejasMesFilter).
+  loadData().then(() => loadQuejasData()).then(() => updateRespSection());
 </script>
 </body>
 </html>
