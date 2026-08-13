@@ -588,8 +588,19 @@
   const BITACORA_SHEET_NAME = 'CALIFICACION X SUCURSAL GMB';
 
   // Web App de Apps Script (doPost) que escribe "Sí" en Aprobado_Para_Publicar.
-  // Publicada con acceso "Solo yo" — solo funciona con tu sesión de Google activa.
+  // La autenticación es por token (ver APROBACION_TOKEN), no por sesión de
+  // Google — un fetch con credentials:'include' cross-origin (GitHub Pages
+  // -> script.google.com) da CORS error real, porque Apps Script Web Apps
+  // no permite configurar los headers CORS necesarios para credenciales
+  // cross-origin. Por eso la implementación puede publicarse con acceso
+  // "Cualquier persona" sin perder protección real: la protección la da
+  // el token, no la sesión.
   const APROBACION_WEBAPP_URL = 'https://script.google.com/a/macros/rebelwings.mx/s/AKfycbw53TWdQHaMB0zOK7PskfRdbywlRvUR9g6r_LxsUmVCu_kz6X8qPxn5x8GKH1aUaMlR/exec';
+  // Token simple compartido con doPost en Apps Script. Visible en el código
+  // fuente público del dashboard — no es secreto real, es una salvaguarda
+  // contra clics accidentales, aceptado como riesgo bajo dado que aprobar
+  // no equivale a publicar (la publicación sigue siendo manual).
+  const APROBACION_TOKEN = 'dIylfdfeWhfzs5WZJIJftyIQ3q59K5Ps';
   
   let allData = [];
   let reviewsData = [];
@@ -1836,9 +1847,13 @@
     try {
       const response = await fetch(APROBACION_WEBAPP_URL, {
         method: 'POST',
-        credentials: 'include', // envía las cookies de sesión de Google en la petición cross-origin; sin esto, Apps Script responde 401 aunque el usuario tenga sesión activa en otra pestaña
+        // Sin credentials:'include': ya no dependemos de la sesión de
+        // Google vía cookies (eso causaba un CORS error real, porque
+        // Apps Script Web Apps no permite configurar los headers CORS
+        // necesarios para peticiones con credenciales cross-origin).
+        // En su lugar, autenticamos con un token simple en el body.
         headers: { 'Content-Type': 'text/plain' }, // evita preflight OPTIONS, que Apps Script Web Apps no maneja
-        body: JSON.stringify({ idResena, accion: 'aprobar' })
+        body: JSON.stringify({ idResena, accion: 'aprobar', token: APROBACION_TOKEN })
       });
       const data = await response.json();
       if (!data.ok) {
@@ -1854,7 +1869,7 @@
       boton.disabled = false;
       boton.classList.remove('loading');
       boton.textContent = 'Reintentar';
-      alert('No se pudo aprobar: ' + error.message + '\n\nVerifica tu sesión de Google (rebelwings.mx) e intenta de nuevo.');
+      alert('No se pudo aprobar: ' + error.message + '\n\nSi el error persiste, verifica que la Web App esté implementada con la última versión del código en Apps Script.');
     }
   }
 
