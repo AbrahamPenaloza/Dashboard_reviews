@@ -334,6 +334,47 @@
   .segu-rank-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .segu-rank-table th, .segu-rank-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
   .segu-rank-table th { color: #999; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+
+  /* --- Pestañas principales --- */
+  .main-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid #eee;
+  }
+  .main-tab-btn {
+    background: none;
+    border: none;
+    padding: 12px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #999;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .main-tab-btn:hover { color: #666; }
+  .main-tab-btn.active { color: #e63946; border-bottom-color: #e63946; }
+  .main-tab-panel { display: none; }
+  .main-tab-panel.active { display: block; }
+
+  /* --- Gráficas de Quejas Redes Sociales --- */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) {
+    .chart-grid { grid-template-columns: 1fr; }
+  }
+  .chart-card {
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .chart-card h3 { font-size: 14px; color: #444; margin-bottom: 14px; }
 </style>
 </head>
 <body>
@@ -342,7 +383,13 @@
     <h1>🔥 Rebel Wings - Dashboard de Reseñas</h1>
     <p>Monitoreo de salud de marca • Actualizado en tiempo real desde Google Business Profile</p>
   </div>
-  
+
+  <div class="main-tabs">
+    <button class="main-tab-btn active" onclick="cambiarTabPrincipal('resenas', this)">📍 Reseñas</button>
+    <button class="main-tab-btn" onclick="cambiarTabPrincipal('quejas-redes', this)">📱 Quejas Redes Sociales</button>
+  </div>
+
+  <div id="tab-resenas" class="main-tab-panel active">
   <div class="controls">
     <div class="control-group">
       <label for="period">Período:</label>
@@ -636,6 +683,31 @@
       <div class="placeholder">Cargando respuestas…</div>
     </div>
   </div>
+  </div> <!-- /tab-resenas -->
+
+  <div id="tab-quejas-redes" class="main-tab-panel">
+
+  <div class="section">
+    <h2>📱 Panorama de Quejas por Redes Sociales</h2>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3>Tendencia mensual de volumen</h3>
+        <canvas id="chartTendenciaMensual" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Distribución por canal</h3>
+        <canvas id="chartPorCanal" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Distribución por categoría</h3>
+        <canvas id="chartPorCategoria" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Volumen y resolución por gerente</h3>
+        <canvas id="chartPorGerente" height="220"></canvas>
+      </div>
+    </div>
+  </div>
 
   <div class="section">
     <h2>🎯 Seguimiento de Quejas</h2>
@@ -693,9 +765,30 @@
       <div class="placeholder">Cargando quejas…</div>
     </div>
   </div>
+  </div> <!-- /tab-quejas-redes -->
 </div>
 
 <script>
+  // Cambia entre las pestañas principales (Reseñas / Quejas Redes Sociales).
+  // Las gráficas de Chart.js en la pestaña oculta al cargar la página se
+  // renderizan igual (canvas con display:none sigue teniendo dimensiones
+  // en el momento del primer render aquí, porque .main-tab-panel usa
+  // display:none real solo en CSS, no oculta el layout al construirse la
+  // página — Chart.js mide el canvas correctamente en la carga inicial).
+  function cambiarTabPrincipal(tabId, boton) {
+    document.querySelectorAll('.main-tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.main-tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+    boton.classList.add('active');
+
+    // Si las gráficas de Chart.js se construyeron mientras este panel
+    // estaba oculto (display:none), pudieron medir el canvas con ancho 0.
+    // Al mostrar el panel, forzamos un resize para que se vean bien.
+    if (tabId === 'quejas-redes' && window._quejasRedesCharts) {
+      window._quejasRedesCharts.forEach(c => c && c.resize());
+    }
+  }
+
   const SHEET_ID = '18PDh6eT4qGE9Sp4dm9bLzBysmO673LfJ3Tm6x14D2KA';
   const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Métricas')}`;
   
@@ -2354,11 +2447,171 @@
     enviarAccionSeguimiento(quejaId, 'cerrar', boton);
   }
 
+  // ============================================
+  // Gráficas: Panorama de Quejas por Redes Sociales
+  // ============================================
+  // Las 4 gráficas usan quejasData (misma fuente que Seguimiento de
+  // Quejas), pero — a diferencia de los KPIs de Seguimiento, que
+  // incluyen TODO (Google + redes) — aquí filtramos SOLO canales de
+  // redes/contacto directo (Canal_Origen != 'Google Maps'), porque el
+  // apartado se llama explícitamente "Quejas Redes Sociales" y mezclar
+  // el volumen de Google (mucho mayor) distorsionaría las proporciones
+  // por canal/categoría que son el punto de esta vista.
+
+  const COLOR_PALETA = ['#e63946', '#1565c0', '#2e7d32', '#e65100', '#6a1b9a', '#00838f', '#9e9e9e'];
+
+  function getQuejasRedes() {
+    return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']));
+  }
+
+  function renderChartTendenciaMensual(datos) {
+    const porMes = {}; // 'YYYY-MM' -> count
+    datos.forEach(q => {
+      const f = parseFechaFlexible(q['Fecha_Recepción']);
+      if (!f) return;
+      const clave = f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
+      porMes[clave] = (porMes[clave] || 0) + 1;
+    });
+    const claves = Object.keys(porMes).sort();
+    const labels = claves.map(k => {
+      const [y, m] = k.split('-');
+      return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
+    });
+
+    const ctx = document.getElementById('chartTendenciaMensual');
+    return new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Quejas por mes',
+          data: claves.map(k => porMes[k]),
+          borderColor: '#e63946',
+          backgroundColor: 'rgba(230,57,70,0.1)',
+          fill: true,
+          tension: 0.3,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+  }
+
+  function renderChartPorCanal(datos) {
+    const porCanal = {};
+    datos.forEach(q => {
+      const canal = q['Canal_Origen'] || 'Sin dato';
+      porCanal[canal] = (porCanal[canal] || 0) + 1;
+    });
+    const labels = Object.keys(porCanal);
+    const ctx = document.getElementById('chartPorCanal');
+    return new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: labels.map(l => porCanal[l]),
+          backgroundColor: COLOR_PALETA,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      },
+    });
+  }
+
+  function renderChartPorCategoria(datos) {
+    const porCategoria = {};
+    datos.forEach(q => {
+      const cat = q['Categoría'] || 'Sin clasificar';
+      porCategoria[cat] = (porCategoria[cat] || 0) + 1;
+    });
+    const labels = Object.keys(porCategoria).sort((a, b) => porCategoria[b] - porCategoria[a]);
+    const ctx = document.getElementById('chartPorCategoria');
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Quejas',
+          data: labels.map(l => porCategoria[l]),
+          backgroundColor: '#1565c0',
+        }],
+      },
+      options: {
+        responsive: true,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+  }
+
+  function renderChartPorGerente(datos) {
+    const mapaZona = window._quejasMapaZona || {};
+    const porGerente = {}; // gerente -> { total, cerradas }
+    datos.forEach(q => {
+      const gerente = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
+      if (!porGerente[gerente]) porGerente[gerente] = { total: 0, cerradas: 0 };
+      porGerente[gerente].total++;
+      if (q.Estatus === 'Cerrada') porGerente[gerente].cerradas++;
+    });
+    const labels = Object.keys(porGerente).sort((a, b) => porGerente[b].total - porGerente[a].total);
+    const ctx = document.getElementById('chartPorGerente');
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Total',
+            data: labels.map(l => porGerente[l].total),
+            backgroundColor: '#e65100',
+          },
+          {
+            label: 'Cerradas',
+            data: labels.map(l => porGerente[l].cerradas),
+            backgroundColor: '#2e7d32',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+  }
+
+  function updateQuejasRedesCharts() {
+    const datos = getQuejasRedes();
+    if (datos.length === 0) return; // sin datos de redes aún, se deja el canvas vacío
+
+    // Destruye instancias previas antes de re-renderizar (evita fugas de
+    // memoria / gráficas duplicadas si esta función se llama más de una
+    // vez, por ejemplo tras un refresh de datos futuro).
+    if (window._quejasRedesCharts) {
+      window._quejasRedesCharts.forEach(c => c && c.destroy());
+    }
+
+    window._quejasRedesCharts = [
+      renderChartTendenciaMensual(datos),
+      renderChartPorCanal(datos),
+      renderChartPorCategoria(datos),
+      renderChartPorGerente(datos),
+    ];
+  }
+
   function updateSeguimientoSection() {
     populateSeguGerenteFilter();
     updateSeguKpis();
     updateSeguRanking();
     renderSeguimiento();
+    updateQuejasRedesCharts();
   }
 
   document.getElementById('seguEstatusFilter').addEventListener('change', renderSeguimiento);
