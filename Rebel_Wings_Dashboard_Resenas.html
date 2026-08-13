@@ -2237,6 +2237,24 @@
     return canalOrigen && canalOrigen !== 'Google Maps';
   }
 
+  // Para filas migradas de Bitácora (Queja_ID = "MIG-YYYYMMDD-N"), el
+  // contador de urgencia (alerta de "sin atender" y tiempo de resolución)
+  // debe arrancar desde la fecha de MIGRACIÓN, no la fecha original de
+  // la queja (que puede ser de meses atrás). Decisión de Abraham: esas
+  // 124 filas son contexto histórico, no casos que un supervisor deba
+  // atender con la misma urgencia que una queja de ayer. Fecha_Recepción
+  // sigue intacta para las gráficas (Tendencia, Canal, Categoría), que sí
+  // deben reflejar la fecha real de la queja.
+  function fechaReferenciaSeguimiento(queja) {
+    const quejaId = String(queja['Queja_ID'] || '');
+    const migMatch = quejaId.match(/^MIG-(\d{4})(\d{2})(\d{2})-/);
+    if (migMatch) {
+      const [, y, m, d] = migMatch;
+      return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    return parseFechaFlexible(queja['Fecha_Recepción']);
+  }
+
   function diasDesde(fecha) {
     if (!fecha) return null;
     const hoy = new Date();
@@ -2294,7 +2312,7 @@
     const cerradas = quejasData.filter(q => q.Estatus === 'Cerrada');
     const sinAtender = quejasData.filter(q => {
       if (q.Estatus !== 'Nueva') return false;
-      const dias = diasDesde(q['Fecha_Recepción']);
+      const dias = diasDesde(fechaReferenciaSeguimiento(q));
       return dias !== null && dias >= ALERTA_DIAS_SIN_ATENDER;
     });
 
@@ -2376,7 +2394,7 @@
     container.innerHTML = filtered.slice(0, 50).map(q => {
       const estatus = q.Estatus || 'Nueva';
       const estatusClase = clasificarEstatusClase(estatus);
-      const dias = diasDesde(q['Fecha_Recepción']);
+      const dias = diasDesde(fechaReferenciaSeguimiento(q));
       const enAlerta = estatus === 'Nueva' && dias !== null && dias >= ALERTA_DIAS_SIN_ATENDER;
       const fechaObj = parseFechaFlexible(q['Fecha_Recepción']);
       const fecha = fechaObj ? fechaObj.toLocaleDateString('es-MX') : '';
