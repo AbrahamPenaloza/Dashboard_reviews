@@ -2250,6 +2250,19 @@
   function parseFechaFlexible(valor) {
     if (!valor) return null;
     if (valor instanceof Date) return valor;
+
+    // Formato propio de la API gviz de Google Sheets: llega como STRING
+    // literal "Date(2026,4,15)" (mes 0-indexed, igual que JS), no como
+    // objeto Date real ni como "dd/mm/yyyy". Sin este caso, cualquier
+    // fecha que gviz devuelva así fallaba el parseo silenciosamente —
+    // causa confirmada del bug donde la gráfica de tendencia mensual
+    // salía vacía a pesar de haber datos.
+    const gvizMatch = String(valor).match(/^Date\((\d+),(\d+),(\d+)/);
+    if (gvizMatch) {
+      const [, y, m, d] = gvizMatch;
+      return new Date(Number(y), Number(m), Number(d));
+    }
+
     const m = String(valor).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
     const d = new Date(valor);
@@ -2466,20 +2479,12 @@
 
   function renderChartTendenciaMensual(datos) {
     const porMes = {}; // 'YYYY-MM' -> count
-    let sinFechaParseable = 0;
     datos.forEach(q => {
       const f = parseFechaFlexible(q['Fecha_Recepción']);
-      if (!f) { sinFechaParseable++; return; }
+      if (!f) return;
       const clave = f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
       porMes[clave] = (porMes[clave] || 0) + 1;
     });
-    // DEPURACIÓN TEMPORAL: para diagnosticar por qué la tendencia mensual
-    // aparece vacía a pesar de que Seguimiento sí muestra datos.
-    console.log('[DEBUG tendencia] total filas recibidas:', datos.length);
-    console.log('[DEBUG tendencia] sin fecha parseable:', sinFechaParseable);
-    console.log('[DEBUG tendencia] muestra de Fecha_Recepción cruda (primeras 3):',
-      datos.slice(0, 3).map(q => ({ valor: q['Fecha_Recepción'], tipo: typeof q['Fecha_Recepción'] })));
-    console.log('[DEBUG tendencia] porMes resultante:', porMes);
 
     const claves = Object.keys(porMes).sort();
     const labels = claves.map(k => {
