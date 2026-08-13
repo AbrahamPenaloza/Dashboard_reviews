@@ -1836,6 +1836,7 @@
     try {
       const response = await fetch(APROBACION_WEBAPP_URL, {
         method: 'POST',
+        credentials: 'include', // envía las cookies de sesión de Google en la petición cross-origin; sin esto, Apps Script responde 401 aunque el usuario tenga sesión activa en otra pestaña
         headers: { 'Content-Type': 'text/plain' }, // evita preflight OPTIONS, que Apps Script Web Apps no maneja
         body: JSON.stringify({ idResena, accion: 'aprobar' })
       });
