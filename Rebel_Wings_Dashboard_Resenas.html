@@ -276,6 +276,64 @@
   .btn-aprobar:hover { background: #c62839; }
   .btn-aprobar:disabled { background: #ccc; cursor: not-allowed; }
   .btn-aprobar.loading { background: #999; cursor: wait; }
+
+  /* --- Sección: Seguimiento de Quejas --- */
+  .segu-card {
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .segu-card.alerta { border-color: #e63946; background: #fff5f5; }
+  .segu-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .segu-status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+  .segu-status-badge.nueva { background: #fff3e0; color: #e65100; }
+  .segu-status-badge.en-proceso { background: #e3f2fd; color: #1565c0; }
+  .segu-status-badge.esperando { background: #f3e5f5; color: #6a1b9a; }
+  .segu-status-badge.cerrada { background: #e8f5e9; color: #2e7d32; }
+  .segu-alert-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: #e63946;
+    color: white;
+    margin-left: 6px;
+  }
+  .segu-meta { font-size: 12px; color: #999; margin-bottom: 8px; }
+  .segu-desc { font-size: 13px; color: #444; margin-bottom: 10px; white-space: pre-line; }
+  .segu-notas { font-size: 13px; color: #666; background: #fafafa; border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; white-space: pre-line; }
+  .segu-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .segu-actions input[type="text"] {
+    border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 13px; flex: 1; min-width: 140px;
+  }
+  .btn-segu {
+    border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .btn-segu.proceso { background: #1565c0; color: white; }
+  .btn-segu.proceso:hover { background: #0d47a1; }
+  .btn-segu.cerrar { background: #2e7d32; color: white; }
+  .btn-segu.cerrar:hover { background: #1b5e20; }
+  .btn-segu:disabled { background: #ccc; cursor: not-allowed; }
+
+  .segu-rank-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .segu-rank-table th, .segu-rank-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+  .segu-rank-table th { color: #999; font-weight: 600; font-size: 11px; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -578,6 +636,63 @@
       <div class="placeholder">Cargando respuestas…</div>
     </div>
   </div>
+
+  <div class="section">
+    <h2>🎯 Seguimiento de Quejas</h2>
+    <div class="resp-kpi-grid">
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value pendiente" id="seguKpiActivas">--</div>
+        <div class="resp-kpi-label">Quejas activas</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value aprobada" id="seguKpiCerradas">--</div>
+        <div class="resp-kpi-label">Cerradas</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value" style="color:#e63946;" id="seguKpiSinAtender">--</div>
+        <div class="resp-kpi-label">Sin atender +1 día</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value publicada" id="seguKpiTiempoProm">--</div>
+        <div class="resp-kpi-label">Días prom. resolución (redes)</div>
+      </div>
+    </div>
+
+    <div id="seguRanking" style="margin-bottom:24px;"></div>
+
+    <div class="controls" style="margin-bottom: 20px;">
+      <div class="control-group">
+        <label for="seguEstatusFilter">Estatus:</label>
+        <select id="seguEstatusFilter">
+          <option value="">Todos</option>
+          <option value="Nueva">Nueva</option>
+          <option value="En Proceso">En Proceso</option>
+          <option value="Esperando respuesta del cliente">Esperando respuesta del cliente</option>
+          <option value="Cerrada">Cerrada</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="seguGerenteFilter">Zona/Gerente:</label>
+        <select id="seguGerenteFilter">
+          <option value="">Todos los gerentes</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="seguCanalFilter">Canal:</label>
+        <select id="seguCanalFilter">
+          <option value="">Todos los canales</option>
+          <option value="Google Maps">Google Maps</option>
+          <option value="Facebook">Facebook</option>
+          <option value="Instagram">Instagram</option>
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div id="seguList">
+      <div class="placeholder">Cargando quejas…</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -602,6 +717,19 @@
   // no equivale a publicar (la publicación sigue siendo manual).
   const APROBACION_TOKEN = 'dIylfdfeWhfzs5WZJIJftyIQ3q59K5Ps';
   
+
+  // Datos de la pestaña "Quejas" (folios, Estatus, asignación por zona) —
+  // distinta de la hoja "Métricas" que alimenta el módulo de estadísticas
+  // mensuales de arriba (que pese al nombre similar es otra cosa).
+  const QUEJAS_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Quejas')}`;
+  let quejasData = []; // filas de la hoja Quejas, cargadas por loadQuejasSheetData()
+
+  // Misma Web App que la sección de Respuestas, pero con doPost extendido
+  // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
+  // más abajo — de momento apunta a la misma URL/token; el backend
+  // distingue la acción por el campo "accion" del body).
+  const SEGUIMIENTO_WEBAPP_URL = APROBACION_WEBAPP_URL;
+  const ALERTA_DIAS_SIN_ATENDER = 1;
   let allData = [];
   let reviewsData = [];
   let quejasCortes = []; // [{ label, date, sucursales: { nombre: {rating, total, r1, r2} } }]
@@ -685,6 +813,27 @@
       });
     } catch (error) {
       console.error('Error cargando reseñas:', error);
+    }
+  }
+
+  // Carga la pestaña "Quejas" completa (folios, Estatus, asignación,
+  // canal, categoría, notas) para alimentar la sección de Seguimiento.
+  // Mismo patrón de parseo gviz que loadReviewsData.
+  async function loadQuejasSheetData() {
+    try {
+      const response = await fetch(QUEJAS_SHEET_URL);
+      const text = await response.text();
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      const cols = json.table.cols.map(c => c.label);
+      quejasData = json.table.rows.map(r => {
+        const row = {};
+        r.c.forEach((cell, i) => {
+          row[cols[i]] = cell ? cell.v : null;
+        });
+        return row;
+      });
+    } catch (error) {
+      console.error('Error cargando pestaña Quejas:', error);
     }
   }
   
@@ -1962,11 +2111,269 @@
   function actualizarResumenQuejas() {
     generarResumenEjecutivo(calcularHallazgosQuejas(), 'resumenQuejasContent', redactarResumenQuejas);
   }
-  
-  // updateRespSection() se llama al final, después de loadQuejasData(), porque
-  // depende de window._quejasMapaZona (mapa Sucursal -> Zona/Gerente), que esa
+
+  // ============================================
+  // Sección: Seguimiento de Quejas
+  // ============================================
+  //
+  // A diferencia de la sección 📮 Respuestas (que trabaja sobre la hoja
+  // "Reseñas"), esta sección trabaja sobre la hoja "Quejas" directamente
+  // — el registro operativo con folio, Estatus, asignación por zona,
+  // canal y notas de seguimiento. Incluye tanto quejas nacidas del
+  // pipeline automático de Google como las migradas de Bitácora
+  // (folios con sufijo "-M").
+  //
+  // Roles y permisos (definidos con Abraham): el dashboard es público y
+  // visible para todos (sucursal, supervisor, gerente, dirección) sin
+  // restricción de zona — a propósito, porque casos como sucursales mal
+  // referidas por el cliente ("Félix Cuevas" mencionado como "Armand")
+  // se resuelven mejor con visibilidad cruzada entre sucursales. Sin
+  // login individual: igual que en Respuestas, la escritura usa un
+  // token compartido (mismo APROBACION_TOKEN) más un campo de nombre
+  // que la persona llena al actuar, para dejar rastro de auditoría sin
+  // gestionar credenciales por persona.
+  //   - Supervisor: Nueva -> En Proceso (con nota de seguimiento)
+  //   - Gerente: cualquier estado -> Cerrada (con nota de cierre;
+  //     calcula Tiempo_Resolución_Dias automáticamente)
+
+  function esQuejaDeRedes(canalOrigen) {
+    // El tiempo de resolución solo aplica a canales con contacto directo
+    // con el cliente (redes sociales, WhatsApp). Las reseñas de Google
+    // no cuentan: el reloj de "resolución" ahí mediría cuánto tarda el
+    // cliente en responder, no el desempeño del equipo.
+    return canalOrigen && canalOrigen !== 'Google Maps';
+  }
+
+  function diasDesde(fecha) {
+    if (!fecha) return null;
+    const hoy = new Date();
+    const f = fecha instanceof Date ? fecha : parseFechaFlexible(fecha);
+    if (!f) return null;
+    return Math.floor((hoy - f) / (1000 * 60 * 60 * 24));
+  }
+
+  // Acepta tanto objetos Date (gviz a veces ya los entrega parseados)
+  // como strings "dd/mm/yyyy" (formato usado por la migración de Bitácora).
+  function parseFechaFlexible(valor) {
+    if (!valor) return null;
+    if (valor instanceof Date) return valor;
+    const m = String(valor).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    const d = new Date(valor);
+    return isNaN(d) ? null : d;
+  }
+
+  function clasificarEstatusClase(estatus) {
+    const map = {
+      'Nueva': 'nueva',
+      'En Proceso': 'en-proceso',
+      'Esperando respuesta del cliente': 'esperando',
+      'Cerrada': 'cerrada',
+    };
+    return map[estatus] || 'nueva';
+  }
+
+  function populateSeguGerenteFilter() {
+    const mapaZona = window._quejasMapaZona || {};
+    const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
+    const select = document.getElementById('seguGerenteFilter');
+    const valorPrevio = select.value;
+    select.innerHTML = '<option value="">Todos los gerentes</option>' +
+      gerentesUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
+    select.value = valorPrevio || '';
+  }
+
+  function updateSeguKpis() {
+    const activas = quejasData.filter(q => q.Estatus !== 'Cerrada');
+    const cerradas = quejasData.filter(q => q.Estatus === 'Cerrada');
+    const sinAtender = quejasData.filter(q => {
+      if (q.Estatus !== 'Nueva') return false;
+      const dias = diasDesde(q['Fecha_Recepción']);
+      return dias !== null && dias >= ALERTA_DIAS_SIN_ATENDER;
+    });
+
+    // Tiempo promedio de resolución: solo canales de redes/WhatsApp,
+    // solo quejas cerradas, solo si Tiempo_Resolución_Dias tiene valor
+    // numérico (lo calcula el backend al cerrar, ver acción cerrarQueja).
+    const cerradasRedes = cerradas.filter(q => esQuejaDeRedes(q['Canal_Origen']) && typeof q['Tiempo_Resolución_Dias'] === 'number');
+    const tiempoProm = cerradasRedes.length > 0
+      ? (cerradasRedes.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasRedes.length).toFixed(1)
+      : '--';
+
+    document.getElementById('seguKpiActivas').textContent = activas.length;
+    document.getElementById('seguKpiCerradas').textContent = cerradas.length;
+    document.getElementById('seguKpiSinAtender').textContent = sinAtender.length;
+    document.getElementById('seguKpiTiempoProm').textContent = tiempoProm;
+  }
+
+  function updateSeguRanking() {
+    const mapaZona = window._quejasMapaZona || {};
+    const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean);
+
+    const filas = gerentesUnicos.map(gerente => {
+      const propias = quejasData.filter(q => q.Zona === gerente || (mapaZona[q.Sucursal] === gerente));
+      const cerradas = propias.filter(q => q.Estatus === 'Cerrada');
+      const cerradasRedes = cerradas.filter(q => esQuejaDeRedes(q['Canal_Origen']) && typeof q['Tiempo_Resolución_Dias'] === 'number');
+      const tiempoProm = cerradasRedes.length > 0
+        ? (cerradasRedes.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasRedes.length).toFixed(1)
+        : '--';
+      const pctCerradas = propias.length > 0 ? Math.round((cerradas.length / propias.length) * 100) : 0;
+      return { gerente, total: propias.length, cerradas: cerradas.length, pctCerradas, tiempoProm };
+    }).filter(f => f.total > 0)
+      .sort((a, b) => b.pctCerradas - a.pctCerradas);
+
+    const container = document.getElementById('seguRanking');
+    if (filas.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="segu-rank-table">
+        <thead>
+          <tr><th>Zona/Gerente</th><th>Total</th><th>Cerradas</th><th>% Cerradas</th><th>Días prom. (redes)</th></tr>
+        </thead>
+        <tbody>
+          ${filas.map(f => `
+            <tr>
+              <td>${f.gerente}</td>
+              <td>${f.total}</td>
+              <td>${f.cerradas}</td>
+              <td>${f.pctCerradas}%</td>
+              <td>${f.tiempoProm}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderSeguimiento() {
+    const estatusFiltro = document.getElementById('seguEstatusFilter').value;
+    const gerenteFiltro = document.getElementById('seguGerenteFilter').value;
+    const canalFiltro = document.getElementById('seguCanalFilter').value;
+    const mapaZona = window._quejasMapaZona || {};
+    const container = document.getElementById('seguList');
+
+    let filtered = quejasData.slice();
+    if (estatusFiltro) filtered = filtered.filter(q => q.Estatus === estatusFiltro);
+    if (gerenteFiltro) filtered = filtered.filter(q => (mapaZona[q.Sucursal] || q.Zona) === gerenteFiltro);
+    if (canalFiltro) filtered = filtered.filter(q => q['Canal_Origen'] === canalFiltro);
+
+    filtered.sort((a, b) => (parseFechaFlexible(b['Fecha_Recepción']) || 0) - (parseFechaFlexible(a['Fecha_Recepción']) || 0));
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="placeholder">No hay quejas para este filtro.</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.slice(0, 50).map(q => {
+      const estatus = q.Estatus || 'Nueva';
+      const estatusClase = clasificarEstatusClase(estatus);
+      const dias = diasDesde(q['Fecha_Recepción']);
+      const enAlerta = estatus === 'Nueva' && dias !== null && dias >= ALERTA_DIAS_SIN_ATENDER;
+      const fechaObj = parseFechaFlexible(q['Fecha_Recepción']);
+      const fecha = fechaObj ? fechaObj.toLocaleDateString('es-MX') : '';
+      const folio = q['Folio_Público'] || '';
+      const quejaId = q['Queja_ID'] || '';
+
+      const botonesAccion = estatus === 'Cerrada' ? '' : `
+        <input type="text" id="seguNombre-${quejaId}" placeholder="Tu nombre" />
+        ${estatus === 'Nueva' ? `<button class="btn-segu proceso" onclick="marcarEnProceso('${quejaId}')">Marcar En Proceso</button>` : ''}
+        <button class="btn-segu cerrar" onclick="cerrarQueja('${quejaId}')">Cerrar caso</button>
+      `;
+
+      return `
+        <div class="segu-card ${enAlerta ? 'alerta' : ''}" id="segu-card-${quejaId}">
+          <div class="segu-card-header">
+            <div>
+              <span class="resp-card-title">${q.Sucursal || ''} · ${folio}</span>
+            </div>
+            <div>
+              <span class="segu-status-badge ${estatusClase}">${estatus}</span>
+              ${enAlerta ? `<span class="segu-alert-badge">Sin atender ${dias}d</span>` : ''}
+            </div>
+          </div>
+          <div class="segu-meta">${fecha} · ${q['Canal_Origen'] || ''} · ${q['Categoría'] || ''} · Zona: ${q.Zona || mapaZona[q.Sucursal] || ''}</div>
+          <div class="segu-desc">${q['Descripción'] || ''}</div>
+          ${q['Notas_Seguimiento'] ? `<div class="segu-notas">${q['Notas_Seguimiento']}</div>` : ''}
+          <div class="segu-actions">${botonesAccion}</div>
+        </div>
+      `;
+    }).join('') + (filtered.length > 50 ? `<div class="placeholder">Mostrando 50 de ${filtered.length}.</div>` : '');
+  }
+
+  async function enviarAccionSeguimiento(quejaId, accion, boton) {
+    const nombreInput = document.getElementById('seguNombre-' + quejaId);
+    const nombre = nombreInput ? nombreInput.value.trim() : '';
+    if (!nombre) {
+      alert('Escribe tu nombre antes de continuar — queda registrado en la nota de seguimiento.');
+      return;
+    }
+
+    boton.disabled = true;
+    const textoOriginal = boton.textContent;
+    boton.textContent = 'Guardando…';
+
+    try {
+      const response = await fetch(SEGUIMIENTO_WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ quejaId, accion, nombre, token: APROBACION_TOKEN }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || 'Error desconocido.');
+
+      // Refleja el cambio localmente sin esperar un reload completo
+      const fila = quejasData.find(q => q['Queja_ID'] === quejaId);
+      if (fila) {
+        fila.Estatus = accion === 'cerrar' ? 'Cerrada' : 'En Proceso';
+        const notaNueva = accion === 'cerrar'
+          ? `Cerrado por ${nombre}.`
+          : `En proceso por ${nombre}.`;
+        fila['Notas_Seguimiento'] = fila['Notas_Seguimiento'] ? (fila['Notas_Seguimiento'] + '\n' + notaNueva) : notaNueva;
+      }
+      updateSeguKpis();
+      updateSeguRanking();
+      renderSeguimiento();
+    } catch (error) {
+      console.error('Error en acción de seguimiento:', error);
+      boton.disabled = false;
+      boton.textContent = textoOriginal;
+      alert('No se pudo guardar: ' + error.message);
+    }
+  }
+
+  function marcarEnProceso(quejaId) {
+    const boton = document.querySelector(`#segu-card-${quejaId} .btn-segu.proceso`);
+    enviarAccionSeguimiento(quejaId, 'en_proceso', boton);
+  }
+
+  function cerrarQueja(quejaId) {
+    const boton = document.querySelector(`#segu-card-${quejaId} .btn-segu.cerrar`);
+    enviarAccionSeguimiento(quejaId, 'cerrar', boton);
+  }
+
+  function updateSeguimientoSection() {
+    populateSeguGerenteFilter();
+    updateSeguKpis();
+    updateSeguRanking();
+    renderSeguimiento();
+  }
+
+  document.getElementById('seguEstatusFilter').addEventListener('change', renderSeguimiento);
+  document.getElementById('seguGerenteFilter').addEventListener('change', renderSeguimiento);
+  document.getElementById('seguCanalFilter').addEventListener('change', renderSeguimiento);
+
+  // updateRespSection() y updateSeguimientoSection() se llaman al final,
+  // después de loadQuejasData(), porque ambas dependen de
+  // window._quejasMapaZona (mapa Sucursal -> Zona/Gerente), que esa
   // función es quien lo construye (dentro de populateQuejasMesFilter).
-  loadData().then(() => loadQuejasData()).then(() => updateRespSection());
+  // updateSeguimientoSection() también depende de quejasData, cargada
+  // por loadQuejasSheetData() en paralelo con loadData().
+  Promise.all([loadData(), loadQuejasSheetData()])
+    .then(() => loadQuejasData())
+    .then(() => { updateRespSection(); updateSeguimientoSection(); });
 </script>
 </body>
 </html>
