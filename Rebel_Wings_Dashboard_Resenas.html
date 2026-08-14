@@ -388,6 +388,55 @@
     line-height: 1.5;
   }
   .chart-insight strong { color: #2b2d42; }
+
+  /* --- Sección: Registrar Contacto por Redes Sociales --- */
+  .contacto-buscar-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .contacto-buscar-row input[type="text"] {
+    flex: 1;
+    max-width: 280px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 14px;
+  }
+  .contacto-found-card, .contacto-notfound-card {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .contacto-found-card { border-left: 4px solid #2e7d32; }
+  .contacto-notfound-card { border-left: 4px solid #e65100; }
+  .contacto-found-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #2e7d32; }
+  .contacto-notfound-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #e65100; }
+  .contacto-preview {
+    font-size: 13px;
+    color: #555;
+    background: #fafafa;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 10px 0;
+  }
+  .contacto-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .contacto-form-grid.full { grid-template-columns: 1fr; }
+  .contacto-form-grid label { font-size: 12px; color: #999; display: block; margin-bottom: 4px; }
+  .contacto-form-grid input, .contacto-form-grid select, .contacto-form-grid textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+  .contacto-form-grid textarea { resize: vertical; min-height: 60px; }
 </style>
 </head>
 <body>
@@ -744,6 +793,18 @@
         <div class="chart-insight" id="insightPorGerente"></div>
       </div>
     </div>
+  </div>
+
+  <div class="section">
+    <h2>📞 Registrar Contacto por Redes Sociales</h2>
+    <p style="font-size:13px; color:#666; margin-bottom:16px;">
+      Cuando un cliente escriba por Instagram, Facebook o WhatsApp mencionando un folio (ej. RW-EDI-0374), búscalo aquí. Si el folio ya existe (viene de una reseña de Google), se agrega como nota a esa misma queja — así evitamos duplicarla. Si no existe, puedes registrarla como una queja nueva.
+    </p>
+    <div class="contacto-buscar-row">
+      <input type="text" id="contactoFolioInput" placeholder="Folio (ej. RW-EDI-0374)" />
+      <button class="btn-segu proceso" onclick="buscarFolioContacto()">Buscar folio</button>
+    </div>
+    <div id="contactoResultado"></div>
   </div>
 
   <div class="section">
@@ -2868,6 +2929,223 @@
     return `<strong>Lectura:</strong> ${lectura}`;
   }
 
+  // ============================================
+  // Sección: Registrar Contacto por Redes Sociales
+  // ============================================
+  // Cuando un cliente escribe por Meta (IG/FB/WhatsApp) mencionando un
+  // folio, esta herramienta evita que Abraham tenga que buscar
+  // manualmente la fila en el Sheet. Dos caminos:
+  //   - Folio SÍ existe en quejasData -> agregar nota + Canal_Secundario
+  //     a esa misma fila (NO se crea fila nueva, evita duplicar la queja
+  //     en reportes — mismo criterio ya usado para los 18 casos de
+  //     fusión confirmados el 12 de agosto).
+  //   - Folio NO existe -> ofrece crear una queja nueva desde cero (caso
+  //     de folio inventado/mal escrito, o reseña que nunca se sincronizó).
+  // Reutiliza el mismo token/URL de Web App que Aprobar/En Proceso/Cerrar.
+
+  function buscarFolioContacto() {
+    const input = document.getElementById('contactoFolioInput');
+    const folio = input.value.trim().toUpperCase();
+    const container = document.getElementById('contactoResultado');
+
+    if (!folio) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const encontrada = quejasData.find(q => String(q['Folio_Público'] || '').trim().toUpperCase() === folio);
+
+    if (encontrada) {
+      renderContactoEncontrado(encontrada, folio);
+    } else {
+      renderContactoNoEncontrado(folio);
+    }
+  }
+
+  function renderContactoEncontrado(queja, folio) {
+    const container = document.getElementById('contactoResultado');
+    const fechaObj = parseFechaFlexible(queja['Fecha_Recepción']);
+    const fecha = fechaObj ? fechaObj.toLocaleDateString('es-MX') : '';
+    const quejaId = queja['Queja_ID'] || '';
+
+    container.innerHTML = `
+      <div class="contacto-found-card">
+        <div class="contacto-found-title">✓ Folio encontrado — se agregará como nota, sin crear una queja nueva</div>
+        <div class="contacto-preview">
+          <strong>${queja.Sucursal || ''}</strong> · ${fecha} · ${queja['Categoría'] || ''} · Estatus: ${queja.Estatus || 'Nueva'}<br>
+          ${(queja['Descripción'] || '').slice(0, 200)}
+        </div>
+        <div class="contacto-form-grid">
+          <div>
+            <label>Tu nombre</label>
+            <input type="text" id="contactoNombre-${quejaId}" placeholder="Tu nombre" />
+          </div>
+          <div>
+            <label>Canal del mensaje</label>
+            <select id="contactoCanal-${quejaId}">
+              <option value="Instagram">Instagram</option>
+              <option value="Facebook">Facebook</option>
+              <option value="WhatsApp">WhatsApp</option>
+            </select>
+          </div>
+        </div>
+        <div class="contacto-form-grid full">
+          <div>
+            <label>Detalle del mensaje / datos de contacto</label>
+            <textarea id="contactoDetalle-${quejaId}" placeholder="Ej. Cliente escribió por Instagram confirmando su número: 55..."></textarea>
+          </div>
+        </div>
+        <button class="btn-segu proceso" onclick="enviarContactoEnlazar('${quejaId}', '${folio}')">Agregar nota a esta queja</button>
+      </div>
+    `;
+  }
+
+  function renderContactoNoEncontrado(folio) {
+    const container = document.getElementById('contactoResultado');
+    const mapaZona = window._quejasMapaZona || {};
+    const zonasUnicas = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
+
+    container.innerHTML = `
+      <div class="contacto-notfound-card">
+        <div class="contacto-notfound-title">⚠ Folio no encontrado — puedes registrarlo como queja nueva</div>
+        <div class="contacto-form-grid">
+          <div>
+            <label>Tu nombre</label>
+            <input type="text" id="contactoNuevoNombre" placeholder="Tu nombre" />
+          </div>
+          <div>
+            <label>Canal del mensaje</label>
+            <select id="contactoNuevoCanal">
+              <option value="Instagram">Instagram</option>
+              <option value="Facebook">Facebook</option>
+              <option value="WhatsApp">WhatsApp</option>
+            </select>
+          </div>
+          <div>
+            <label>Sucursal</label>
+            <input type="text" id="contactoNuevoSucursal" placeholder="Nombre de la sucursal" />
+          </div>
+          <div>
+            <label>Zona/Gerente</label>
+            <select id="contactoNuevoZona">
+              ${zonasUnicas.map(z => `<option value="${z}">${z}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Categoría</label>
+            <select id="contactoNuevoCategoria">
+              <option value="Mal servicio del personal">Mal servicio del personal</option>
+              <option value="Limpieza">Limpieza</option>
+              <option value="Tiempos de espera alimentos/servicio">Tiempos de espera alimentos/servicio</option>
+              <option value="Alitas/boneless en mal estado">Alitas/boneless en mal estado</option>
+              <option value="Otros alimentos en mal estado">Otros alimentos en mal estado</option>
+              <option value="Fauna">Fauna</option>
+              <option value="Propinas">Propinas</option>
+              <option value="Experiencias">Experiencias</option>
+              <option value="Accesibilidad">Accesibilidad</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="contacto-form-grid full">
+          <div>
+            <label>Descripción de la queja / datos de contacto</label>
+            <textarea id="contactoNuevoDescripcion" placeholder="Detalle del mensaje y datos de contacto del cliente"></textarea>
+          </div>
+        </div>
+        <button class="btn-segu proceso" onclick="enviarContactoCrear('${folio}')">Crear queja nueva</button>
+      </div>
+    `;
+  }
+
+  async function enviarContactoEnlazar(quejaId, folio) {
+    const nombre = document.getElementById(`contactoNombre-${quejaId}`).value.trim();
+    const canal = document.getElementById(`contactoCanal-${quejaId}`).value;
+    const detalle = document.getElementById(`contactoDetalle-${quejaId}`).value.trim();
+
+    if (!nombre) { alert('Escribe tu nombre antes de continuar.'); return; }
+    if (!detalle) { alert('Escribe el detalle del mensaje antes de continuar.'); return; }
+
+    const boton = document.querySelector(`#contactoResultado .btn-segu.proceso`);
+    boton.disabled = true;
+    boton.textContent = 'Guardando…';
+
+    try {
+      const response = await fetch(SEGUIMIENTO_WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          accion: 'registrar_contacto_meta',
+          modo: 'enlazar',
+          folio, nombre, canal, detalle,
+          token: APROBACION_TOKEN,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || 'Error desconocido.');
+
+      // Refleja el cambio localmente
+      const fila = quejasData.find(q => q['Queja_ID'] === quejaId);
+      if (fila) {
+        fila['Canal_Secundario'] = canal;
+        const notaNueva = `Contacto por ${canal} registrado por ${nombre}: ${detalle}`;
+        fila['Notas_Seguimiento'] = fila['Notas_Seguimiento'] ? (fila['Notas_Seguimiento'] + '\n' + notaNueva) : notaNueva;
+      }
+      document.getElementById('contactoResultado').innerHTML = `<div class="contacto-found-card"><div class="contacto-found-title">✓ Nota agregada correctamente a ${folio}.</div></div>`;
+      document.getElementById('contactoFolioInput').value = '';
+    } catch (error) {
+      console.error('Error al enlazar contacto:', error);
+      boton.disabled = false;
+      boton.textContent = 'Agregar nota a esta queja';
+      alert('No se pudo guardar: ' + error.message);
+    }
+  }
+
+  async function enviarContactoCrear(folio) {
+    const nombre = document.getElementById('contactoNuevoNombre').value.trim();
+    const canal = document.getElementById('contactoNuevoCanal').value;
+    const sucursal = document.getElementById('contactoNuevoSucursal').value.trim();
+    const zona = document.getElementById('contactoNuevoZona').value;
+    const categoria = document.getElementById('contactoNuevoCategoria').value;
+    const descripcion = document.getElementById('contactoNuevoDescripcion').value.trim();
+
+    if (!nombre) { alert('Escribe tu nombre antes de continuar.'); return; }
+    if (!sucursal) { alert('Escribe la sucursal antes de continuar.'); return; }
+    if (!descripcion) { alert('Escribe la descripción antes de continuar.'); return; }
+
+    const boton = document.querySelector(`#contactoResultado .btn-segu.proceso`);
+    boton.disabled = true;
+    boton.textContent = 'Guardando…';
+
+    try {
+      const response = await fetch(SEGUIMIENTO_WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          accion: 'registrar_contacto_meta',
+          modo: 'crear',
+          folioOriginal: folio, nombre, canal, sucursal, zona, categoria, descripcion,
+          token: APROBACION_TOKEN,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || 'Error desconocido.');
+
+      document.getElementById('contactoResultado').innerHTML = `<div class="contacto-found-card"><div class="contacto-found-title">✓ Queja nueva creada con folio ${data.folioNuevo || ''}.</div></div>`;
+      document.getElementById('contactoFolioInput').value = '';
+      // No actualizamos quejasData localmente aquí porque la fila nueva
+      // se creó en el Sheet en este momento — el próximo refresh del
+      // dashboard (o recargar la página) la traerá. Evitamos reconstruir
+      // el objeto localmente para no arriesgar inconsistencia con lo
+      // que el backend realmente escribió.
+    } catch (error) {
+      console.error('Error al crear queja desde contacto:', error);
+      boton.disabled = false;
+      boton.textContent = 'Crear queja nueva';
+      alert('No se pudo guardar: ' + error.message);
+    }
+  }
+
   function updateSeguimientoSection() {
     populateSeguGerenteFilter();
     updateSeguKpis();
@@ -2875,6 +3153,10 @@
     renderSeguimiento();
     updateQuejasRedesCharts();
   }
+
+  document.getElementById('contactoFolioInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') buscarFolioContacto();
+  });
 
   document.getElementById('seguEstatusFilter').addEventListener('change', renderSeguimiento);
   document.getElementById('seguGerenteFilter').addEventListener('change', renderSeguimiento);
