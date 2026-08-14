@@ -753,7 +753,6 @@
         <label for="seguCanalFilter">Canal:</label>
         <select id="seguCanalFilter">
           <option value="">Todos los canales</option>
-          <option value="Google Maps">Google Maps</option>
           <option value="Facebook">Facebook</option>
           <option value="Instagram">Instagram</option>
           <option value="WhatsApp">WhatsApp</option>
@@ -761,6 +760,9 @@
         </select>
       </div>
     </div>
+    <p style="font-size:12px; color:#999; margin-top:-8px; margin-bottom:16px;">
+      Esta sección solo incluye quejas de redes sociales/WhatsApp — las reseñas de Google se gestionan aparte en 📮 Respuestas a Reseñas (pestaña Reseñas), ya que ahí se espera contacto del cliente vía folio.
+    </p>
     <div id="seguList">
       <div class="placeholder">Cargando quejas…</div>
     </div>
@@ -2307,21 +2309,37 @@
     select.value = valorPrevio || '';
   }
 
+  // La sección de Seguimiento vive dentro de la pestaña "Quejas Redes
+  // Sociales" — por consistencia con las 4 gráficas de arriba (que ya
+  // excluyen Google Maps), toda la sección trabaja sobre este subconjunto
+  // filtrado, no sobre quejasData completo. Sin este filtro, las 1,381
+  // quejas activas de Google (mucho mayor volumen) dominaban tanto los
+  // KPIs como el slice(0,50) de la lista, y las quejas de redes nunca
+  // llegaban a mostrarse. Las reseñas de Google siguen su propio flujo
+  // en la pestaña Reseñas (sección 📮), tal como se acordó: ese canal
+  // depende de que el cliente responda con el folio, no de seguimiento
+  // proactivo del equipo.
+  function getQuejasSeguimiento() {
+    return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']));
+  }
+
   function updateSeguKpis() {
-    const activas = quejasData.filter(q => q.Estatus !== 'Cerrada');
-    const cerradas = quejasData.filter(q => q.Estatus === 'Cerrada');
-    const sinAtender = quejasData.filter(q => {
+    const base = getQuejasSeguimiento();
+    const activas = base.filter(q => q.Estatus !== 'Cerrada');
+    const cerradas = base.filter(q => q.Estatus === 'Cerrada');
+    const sinAtender = base.filter(q => {
       if (q.Estatus !== 'Nueva') return false;
       const dias = diasDesde(fechaReferenciaSeguimiento(q));
       return dias !== null && dias >= ALERTA_DIAS_SIN_ATENDER;
     });
 
-    // Tiempo promedio de resolución: solo canales de redes/WhatsApp,
-    // solo quejas cerradas, solo si Tiempo_Resolución_Dias tiene valor
-    // numérico (lo calcula el backend al cerrar, ver acción cerrarQueja).
-    const cerradasRedes = cerradas.filter(q => esQuejaDeRedes(q['Canal_Origen']) && typeof q['Tiempo_Resolución_Dias'] === 'number');
-    const tiempoProm = cerradasRedes.length > 0
-      ? (cerradasRedes.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasRedes.length).toFixed(1)
+    // Tiempo promedio de resolución: solo si Tiempo_Resolución_Dias tiene
+    // valor numérico (lo calcula el backend al cerrar). El filtro de
+    // canal ya viene aplicado por getQuejasSeguimiento(), no hace falta
+    // repetirlo aquí.
+    const cerradasConTiempo = cerradas.filter(q => typeof q['Tiempo_Resolución_Dias'] === 'number');
+    const tiempoProm = cerradasConTiempo.length > 0
+      ? (cerradasConTiempo.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasConTiempo.length).toFixed(1)
       : '--';
 
     document.getElementById('seguKpiActivas').textContent = activas.length;
@@ -2333,13 +2351,14 @@
   function updateSeguRanking() {
     const mapaZona = window._quejasMapaZona || {};
     const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean);
+    const base = getQuejasSeguimiento();
 
     const filas = gerentesUnicos.map(gerente => {
-      const propias = quejasData.filter(q => q.Zona === gerente || (mapaZona[q.Sucursal] === gerente));
+      const propias = base.filter(q => q.Zona === gerente || (mapaZona[q.Sucursal] === gerente));
       const cerradas = propias.filter(q => q.Estatus === 'Cerrada');
-      const cerradasRedes = cerradas.filter(q => esQuejaDeRedes(q['Canal_Origen']) && typeof q['Tiempo_Resolución_Dias'] === 'number');
-      const tiempoProm = cerradasRedes.length > 0
-        ? (cerradasRedes.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasRedes.length).toFixed(1)
+      const cerradasConTiempo = cerradas.filter(q => typeof q['Tiempo_Resolución_Dias'] === 'number');
+      const tiempoProm = cerradasConTiempo.length > 0
+        ? (cerradasConTiempo.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasConTiempo.length).toFixed(1)
         : '--';
       const pctCerradas = propias.length > 0 ? Math.round((cerradas.length / propias.length) * 100) : 0;
       return { gerente, total: propias.length, cerradas: cerradas.length, pctCerradas, tiempoProm };
@@ -2379,7 +2398,7 @@
     const mapaZona = window._quejasMapaZona || {};
     const container = document.getElementById('seguList');
 
-    let filtered = quejasData.slice();
+    let filtered = getQuejasSeguimiento();
     if (estatusFiltro) filtered = filtered.filter(q => q.Estatus === estatusFiltro);
     if (gerenteFiltro) filtered = filtered.filter(q => (mapaZona[q.Sucursal] || q.Zona) === gerenteFiltro);
     if (canalFiltro) filtered = filtered.filter(q => q['Canal_Origen'] === canalFiltro);
