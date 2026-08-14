@@ -375,6 +375,10 @@
     padding: 18px;
   }
   .chart-card h3 { font-size: 14px; color: #444; margin-bottom: 14px; }
+  .chart-donut-wrap {
+    max-width: 260px;
+    margin: 0 auto;
+  }
   .chart-insight {
     margin-top: 14px;
     padding-top: 12px;
@@ -718,13 +722,15 @@
     </div>
     <div class="chart-grid">
       <div class="chart-card">
-        <h3>Tendencia mensual de volumen</h3>
+        <h3>Tendencia de volumen</h3>
         <canvas id="chartTendenciaMensual" height="220"></canvas>
         <div class="chart-insight" id="insightTendenciaMensual"></div>
       </div>
       <div class="chart-card">
         <h3>Distribución por canal</h3>
-        <canvas id="chartPorCanal" height="220"></canvas>
+        <div class="chart-donut-wrap">
+          <canvas id="chartPorCanal" height="220"></canvas>
+        </div>
         <div class="chart-insight" id="insightPorCanal"></div>
       </div>
       <div class="chart-card">
@@ -2585,16 +2591,32 @@
   }
 
   function renderChartTendenciaMensual(datos) {
-    const porMes = {}; // 'YYYY-MM' -> count
+    // Decide agrupación DIARIA vs MENSUAL según el ancho real del rango
+    // seleccionado (no según qué opción eligió el usuario en el select),
+    // para que "Personalizado" con un rango corto también se beneficie.
+    // Con un solo punto mensual (rango de 1 mes) la línea no cuenta nada
+    // útil — por eso el cambio a vista diaria cuando el rango es corto.
+    const startDate = getStartDate('_quejasredes');
+    const endDate = getEndDate('_quejasredes');
+    const diasEnRango = Math.max(1, Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)));
+    const vistaDiaria = diasEnRango <= 45;
+
+    const porPeriodo = {}; // clave -> count
     datos.forEach(q => {
       const f = parseFechaFlexible(q['Fecha_Recepción']);
       if (!f) return;
-      const clave = f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
-      porMes[clave] = (porMes[clave] || 0) + 1;
+      const clave = vistaDiaria
+        ? f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0')
+        : f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
+      porPeriodo[clave] = (porPeriodo[clave] || 0) + 1;
     });
 
-    const claves = Object.keys(porMes).sort();
+    const claves = Object.keys(porPeriodo).sort();
     const labels = claves.map(k => {
+      if (vistaDiaria) {
+        const [y, m, d] = k.split('-');
+        return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+      }
       const [y, m] = k.split('-');
       return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
     });
@@ -2605,8 +2627,8 @@
       data: {
         labels,
         datasets: [{
-          label: 'Quejas por mes',
-          data: claves.map(k => porMes[k]),
+          label: vistaDiaria ? 'Quejas por día' : 'Quejas por mes',
+          data: claves.map(k => porPeriodo[k]),
           borderColor: '#e63946',
           backgroundColor: 'rgba(230,57,70,0.1)',
           fill: true,
@@ -2640,6 +2662,8 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: true,
+        aspectRatio: 1,
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
       },
     });
