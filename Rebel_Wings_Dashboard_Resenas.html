@@ -375,6 +375,15 @@
     padding: 18px;
   }
   .chart-card h3 { font-size: 14px; color: #444; margin-bottom: 14px; }
+  .chart-insight {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+    font-size: 12.5px;
+    color: #555;
+    line-height: 1.5;
+  }
+  .chart-insight strong { color: #2b2d42; }
 </style>
 </head>
 <body>
@@ -689,22 +698,44 @@
 
   <div class="section">
     <h2>📱 Panorama de Quejas por Redes Sociales</h2>
+    <div class="controls" style="margin-bottom: 16px;">
+      <div class="control-group">
+        <label for="period_quejasredes">Período:</label>
+        <select id="period_quejasredes" class="section-period">
+          <option value="all" selected>Todo el tiempo</option>
+          <option value="year">Últimos 365 días</option>
+          <option value="quarter">Últimos 90 días</option>
+          <option value="month">Últimos 30 días</option>
+          <option value="custom">Personalizado…</option>
+        </select>
+      </div>
+      <div class="control-group section-custom-range" id="customRangeGroup_quejasredes" style="display:none;">
+        <label for="customStart_quejasredes">Del:</label>
+        <input type="date" id="customStart_quejasredes">
+        <label for="customEnd_quejasredes">Al:</label>
+        <input type="date" id="customEnd_quejasredes">
+      </div>
+    </div>
     <div class="chart-grid">
       <div class="chart-card">
         <h3>Tendencia mensual de volumen</h3>
         <canvas id="chartTendenciaMensual" height="220"></canvas>
+        <div class="chart-insight" id="insightTendenciaMensual"></div>
       </div>
       <div class="chart-card">
         <h3>Distribución por canal</h3>
         <canvas id="chartPorCanal" height="220"></canvas>
+        <div class="chart-insight" id="insightPorCanal"></div>
       </div>
       <div class="chart-card">
         <h3>Distribución por categoría</h3>
         <canvas id="chartPorCategoria" height="220"></canvas>
+        <div class="chart-insight" id="insightPorCategoria"></div>
       </div>
       <div class="chart-card">
         <h3>Volumen y resolución por gerente</h3>
         <canvas id="chartPorGerente" height="220"></canvas>
+        <div class="chart-insight" id="insightPorGerente"></div>
       </div>
     </div>
   </div>
@@ -1919,6 +1950,25 @@
   wirePeriodSelector('_top', updateTopSection);
   wirePeriodSelector('_theme', updateThemeSection);
   wirePeriodSelector('_manager', updateManagerSection);
+
+  // Selector de periodo de "Quejas Redes Sociales": deliberadamente
+  // independiente del resto (no pasa por sincronizarPeriodoDesde ni por
+  // TODOS_LOS_SUFIJOS) — decisión de Abraham de que este periodo no
+  // afecte ni sea afectado por los filtros de la pestaña Reseñas.
+  (function wireQuejasRedesPeriodSelector() {
+    const periodEl = document.getElementById('period_quejasredes');
+    const startEl = document.getElementById('customStart_quejasredes');
+    const endEl = document.getElementById('customEnd_quejasredes');
+    const rangeGroupEl = document.getElementById('customRangeGroup_quejasredes');
+
+    periodEl.addEventListener('change', () => {
+      const isCustom = periodEl.value === 'custom';
+      rangeGroupEl.style.display = isCustom ? 'flex' : 'none';
+      if (!isCustom || (startEl.value && endEl.value)) updateQuejasRedesCharts();
+    });
+    startEl.addEventListener('change', () => { if (startEl.value && endEl.value) updateQuejasRedesCharts(); });
+    endEl.addEventListener('change', () => { if (startEl.value && endEl.value) updateQuejasRedesCharts(); });
+  })();
   
   document.getElementById('compareMode').addEventListener('change', updateComparisonTable);
   document.getElementById('themeFilter').addEventListener('change', () => {
@@ -2323,6 +2373,26 @@
     return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']));
   }
 
+  // Para las 4 gráficas: además del filtro de redes (igual que
+  // getQuejasSeguimiento), aplica el selector de periodo independiente
+  // "_quejasredes". A propósito NO se usa esta versión para la sección
+  // 🎯 Seguimiento de Quejas (KPIs, ranking, lista) — esa sección es la
+  // vista operativa de "qué necesita atención hoy" y debe mostrar
+  // siempre el panorama completo, sin que un filtro de periodo pensado
+  // para reportes históricos oculte una queja activa por accidente.
+  function getQuejasRedesPorPeriodo() {
+    const startDate = getStartDate('_quejasredes');
+    const endDate = getEndDate('_quejasredes');
+    return getQuejasSeguimiento().filter(q => {
+      // Las gráficas reflejan el histórico REAL, a diferencia de las
+      // alertas de Seguimiento — por eso aquí sí usamos Fecha_Recepción
+      // directa (fecha original de la queja), no fechaReferenciaSeguimiento
+      // (que para filas migradas usa la fecha de migración a propósito).
+      const f = parseFechaFlexible(q['Fecha_Recepción']);
+      return f && f >= startDate && f <= endDate;
+    });
+  }
+
   function updateSeguKpis() {
     const base = getQuejasSeguimiento();
     const activas = base.filter(q => q.Estatus !== 'Cerrada');
@@ -2639,14 +2709,23 @@
   }
 
   function updateQuejasRedesCharts() {
-    const datos = getQuejasRedes();
-    if (datos.length === 0) return; // sin datos de redes aún, se deja el canvas vacío
+    const datos = getQuejasRedesPorPeriodo();
 
-    // Destruye instancias previas antes de re-renderizar (evita fugas de
-    // memoria / gráficas duplicadas si esta función se llama más de una
-    // vez, por ejemplo tras un refresh de datos futuro).
     if (window._quejasRedesCharts) {
       window._quejasRedesCharts.forEach(c => c && c.destroy());
+    }
+
+    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente'];
+    if (datos.length === 0) {
+      // Sin datos en el periodo elegido: se limpian canvas e insights en
+      // vez de dejar la gráfica/comentario de la corrida anterior.
+      window._quejasRedesCharts = [];
+      vacios.forEach(id => { document.getElementById(id).innerHTML = ''; });
+      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente'].forEach(id => {
+        const ctx = document.getElementById(id).getContext('2d');
+        ctx.clearRect(0, 0, 9999, 9999);
+      });
+      return;
     }
 
     window._quejasRedesCharts = [
@@ -2655,6 +2734,114 @@
       renderChartPorCategoria(datos),
       renderChartPorGerente(datos),
     ];
+
+    generarInsightsQuejasRedes(datos);
+  }
+
+  // ============================================
+  // Comentarios de análisis (estilo CRM) para las 4 gráficas
+  // ============================================
+  // Cada función lee los mismos "datos" ya filtrados por periodo y canal
+  // (redes sociales) que alimentaron la gráfica correspondiente, y arma
+  // un comentario corto y accionable — no una descripción de lo que ya
+  // se ve en la gráfica, sino una lectura de qué implica para el negocio
+  // y qué vale la pena revisar o vigilar.
+
+  function generarInsightsQuejasRedes(datos) {
+    document.getElementById('insightTendenciaMensual').innerHTML = insightTendencia(datos);
+    document.getElementById('insightPorCanal').innerHTML = insightCanal(datos);
+    document.getElementById('insightPorCategoria').innerHTML = insightCategoria(datos);
+    document.getElementById('insightPorGerente').innerHTML = insightGerente(datos);
+  }
+
+  function insightTendencia(datos) {
+    const porMes = {};
+    datos.forEach(q => {
+      const f = parseFechaFlexible(q['Fecha_Recepción']);
+      if (!f) return;
+      const clave = f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
+      porMes[clave] = (porMes[clave] || 0) + 1;
+    });
+    const claves = Object.keys(porMes).sort();
+    if (claves.length < 2) {
+      return `<strong>Lectura:</strong> Hay muy poco histórico todavía (${claves.length} mes${claves.length === 1 ? '' : 'es'} con datos) para hablar de tendencia real. Vale la pena revisar de nuevo cuando se acumulen al menos 3 meses.`;
+    }
+    const ultimo = porMes[claves[claves.length - 1]];
+    const penultimo = porMes[claves[claves.length - 2]];
+    const cambio = penultimo > 0 ? Math.round(((ultimo - penultimo) / penultimo) * 100) : null;
+    const promedioPrevios = claves.slice(0, -1).reduce((s, k) => s + porMes[k], 0) / (claves.length - 1);
+    let lectura;
+    if (cambio === null) {
+      lectura = `El mes más reciente registró ${ultimo} quejas.`;
+    } else if (cambio > 20) {
+      lectura = `El mes más reciente subió ${cambio}% vs el anterior (${ultimo} vs ${penultimo}) — un salto así vale la pena investigar: ¿fue una sucursal puntual, una campaña que generó más contacto, o un problema operativo real?`;
+    } else if (cambio < -20) {
+      lectura = `El mes más reciente bajó ${Math.abs(cambio)}% vs el anterior (${ultimo} vs ${penultimo}) — buena señal, aunque conviene confirmar que no sea por menor captura en vez de menos quejas reales.`;
+    } else {
+      lectura = `El volumen se mantiene relativamente estable mes a mes (${ultimo} en el más reciente, promedio de ${promedioPrevios.toFixed(1)} en meses previos).`;
+    }
+    return `<strong>Lectura:</strong> ${lectura}`;
+  }
+
+  function insightCanal(datos) {
+    const porCanal = {};
+    datos.forEach(q => { const c = q['Canal_Origen'] || 'Sin dato'; porCanal[c] = (porCanal[c] || 0) + 1; });
+    const total = datos.length;
+    const ordenado = Object.entries(porCanal).sort((a, b) => b[1] - a[1]);
+    if (ordenado.length === 0) return '<strong>Lectura:</strong> Sin datos suficientes en este periodo.';
+    const [canalTop, countTop] = ordenado[0];
+    const pctTop = Math.round((countTop / total) * 100);
+    let lectura = `${canalTop} concentra ${pctTop}% de las quejas de redes (${countTop} de ${total}).`;
+    if (pctTop > 60) {
+      lectura += ` Con esa concentración, vale la pena confirmar que el equipo de atención a ${canalTop} tenga suficiente capacidad — un solo canal saturado es un riesgo si no se distribuye bien la carga.`;
+    } else if (ordenado.length >= 3) {
+      lectura += ` La distribución entre canales está relativamente pareja, lo que sugiere que el volumen no depende de un solo punto de contacto.`;
+    }
+    return `<strong>Lectura:</strong> ${lectura}`;
+  }
+
+  function insightCategoria(datos) {
+    const porCategoria = {};
+    datos.forEach(q => { const c = q['Categoría'] || 'Sin clasificar'; porCategoria[c] = (porCategoria[c] || 0) + 1; });
+    const total = datos.length;
+    const ordenado = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
+    if (ordenado.length === 0) return '<strong>Lectura:</strong> Sin datos suficientes en este periodo.';
+    const [catTop, countTop] = ordenado[0];
+    const pctTop = Math.round((countTop / total) * 100);
+    let lectura = `"${catTop}" es el motivo más recurrente, con ${pctTop}% del total (${countTop} casos).`;
+    if (pctTop > 40) {
+      lectura += ` Que un solo tema concentre tanto peso sugiere una causa raíz específica y corregible — probablemente rinda más invertir en resolverla de fondo que seguir atendiendo casos uno por uno.`;
+    } else {
+      lectura += ` Los motivos están bastante repartidos, lo que apunta más a variabilidad operativa general que a un problema puntual.`;
+    }
+    return `<strong>Lectura:</strong> ${lectura}`;
+  }
+
+  function insightGerente(datos) {
+    const mapaZona = window._quejasMapaZona || {};
+    const porGerente = {};
+    datos.forEach(q => {
+      const g = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
+      if (!porGerente[g]) porGerente[g] = { total: 0, cerradas: 0 };
+      porGerente[g].total++;
+      if (q.Estatus === 'Cerrada') porGerente[g].cerradas++;
+    });
+    const entradas = Object.entries(porGerente).filter(([, v]) => v.total >= 2); // evita ruido de N muy chico
+    if (entradas.length === 0) return '<strong>Lectura:</strong> Sin datos suficientes por gerente en este periodo.';
+
+    const conPct = entradas.map(([g, v]) => ({ gerente: g, total: v.total, pct: Math.round((v.cerradas / v.total) * 100) }));
+    const mejor = conPct.reduce((a, b) => (b.pct > a.pct ? b : a));
+    const peor = conPct.reduce((a, b) => (b.pct < a.pct ? b : a));
+
+    let lectura;
+    if (mejor.gerente === peor.gerente) {
+      lectura = `${mejor.gerente} es la única zona con volumen suficiente para comparar este periodo (${mejor.pct}% cerradas).`;
+    } else if (mejor.pct - peor.pct >= 30) {
+      lectura = `Brecha amplia entre zonas: ${mejor.gerente} cierra ${mejor.pct}% de sus casos vs ${peor.pct}% de ${peor.gerente}. Vale la pena entender qué está haciendo distinto ${mejor.gerente} — podría ser un proceso replicable, no solo suerte de volumen.`;
+    } else {
+      lectura = `El desempeño entre zonas es relativamente parejo (entre ${peor.pct}% y ${mejor.pct}% de casos cerrados), sin una brecha que salte a la vista.`;
+    }
+    return `<strong>Lectura:</strong> ${lectura}`;
   }
 
   function updateSeguimientoSection() {
