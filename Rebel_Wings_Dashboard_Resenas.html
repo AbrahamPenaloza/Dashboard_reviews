@@ -2962,6 +2962,16 @@
     }
   }
 
+  // Se dispara al elegir una sucursal en el formulario de "crear queja
+  // nueva" — llena automáticamente el campo Zona/Gerente (solo lectura)
+  // usando el mismo mapa Sucursal->Zona que ya usa el resto del
+  // dashboard, evitando que alguien asigne la zona incorrecta a mano.
+  function autocompletarZonaContacto() {
+    const sucursalSel = document.getElementById('contactoNuevoSucursal').value;
+    const mapaZona = window._quejasMapaZona || {};
+    document.getElementById('contactoNuevoZona').value = mapaZona[sucursalSel] || '';
+  }
+
   function renderContactoEncontrado(queja, folio) {
     const container = document.getElementById('contactoResultado');
     const fechaObj = parseFechaFlexible(queja['Fecha_Recepción']);
@@ -3003,7 +3013,7 @@
   function renderContactoNoEncontrado(folio) {
     const container = document.getElementById('contactoResultado');
     const mapaZona = window._quejasMapaZona || {};
-    const zonasUnicas = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
+    const sucursalesUnicas = Object.keys(mapaZona).filter(Boolean).sort();
 
     container.innerHTML = `
       <div class="contacto-notfound-card">
@@ -3023,13 +3033,14 @@
           </div>
           <div>
             <label>Sucursal</label>
-            <input type="text" id="contactoNuevoSucursal" placeholder="Nombre de la sucursal" />
+            <select id="contactoNuevoSucursal" onchange="autocompletarZonaContacto()">
+              <option value="">Selecciona una sucursal…</option>
+              ${sucursalesUnicas.map(s => `<option value="${s}">${s}</option>`).join('')}
+            </select>
           </div>
           <div>
-            <label>Zona/Gerente</label>
-            <select id="contactoNuevoZona">
-              ${zonasUnicas.map(z => `<option value="${z}">${z}</option>`).join('')}
-            </select>
+            <label>Zona/Gerente (automático)</label>
+            <input type="text" id="contactoNuevoZona" readonly placeholder="Se llena al elegir sucursal" style="background:#f5f5f5; color:#666;" />
           </div>
           <div>
             <label>Categoría</label>
@@ -3110,7 +3121,7 @@
     const descripcion = document.getElementById('contactoNuevoDescripcion').value.trim();
 
     if (!nombre) { alert('Escribe tu nombre antes de continuar.'); return; }
-    if (!sucursal) { alert('Escribe la sucursal antes de continuar.'); return; }
+    if (!sucursal) { alert('Selecciona una sucursal antes de continuar.'); return; }
     if (!descripcion) { alert('Escribe la descripción antes de continuar.'); return; }
 
     const boton = document.querySelector(`#contactoResultado .btn-segu.proceso`);
