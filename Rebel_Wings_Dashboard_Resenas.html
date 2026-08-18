@@ -724,6 +724,10 @@
         <div class="resp-kpi-label">Publicadas</div>
       </div>
     </div>
+    <div style="margin-bottom:20px;">
+      <button class="btn-segu proceso" id="btnPublicarRespuestas" onclick="publicarRespuestasDesdeMovil()">📤 Publicar respuestas aprobadas en Google</button>
+      <div id="publicarResultado" style="margin-top:10px;"></div>
+    </div>
     <div class="controls" style="margin-bottom: 20px;">
       <div class="control-group">
         <label for="respEstadoFilter">Estado:</label>
@@ -2201,6 +2205,48 @@
   // (la Web App está publicada con "Quién tiene acceso: Solo yo").
   // La publicación real en Google sigue corriendo manual desde Apps Script
   // (publicarRespuestasAprobadas) — este botón solo aprueba, no publica.
+  // Publica las respuestas aprobadas directo en Google, vía la Web App
+  // (misma lógica que publicarRespuestasAprobadas() en Apps Script) —
+  // pensado para cuando no hay forma de entrar al editor de Apps Script
+  // (ej. celular, donde la app móvil de Sheets no expone Extensiones).
+  // Solo la usa Abraham, por eso no pide nombre como sí lo hacen las
+  // acciones de Seguimiento/Contacto que necesitan trazabilidad.
+  async function publicarRespuestasDesdeMovil() {
+    const boton = document.getElementById('btnPublicarRespuestas');
+    const resultado = document.getElementById('publicarResultado');
+    boton.disabled = true;
+    const textoOriginal = boton.textContent;
+    boton.textContent = 'Publicando… (puede tardar hasta un minuto)';
+    resultado.innerHTML = '';
+
+    try {
+      const response = await fetch(SEGUIMIENTO_WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ accion: 'publicar_respuestas', token: APROBACION_TOKEN }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || 'Error desconocido.');
+
+      resultado.innerHTML = `
+        <div class="contacto-found-card">
+          <div class="contacto-found-title">✓ Publicadas: ${data.publicadas} · Fallidas: ${data.fallidas} · Saltadas: ${data.saltadas}</div>
+          ${data.erroresDetalle && data.erroresDetalle.length > 0 ? `<div class="contacto-preview">${data.erroresDetalle.join('<br>')}</div>` : ''}
+        </div>
+      `;
+
+      // Refresca la sección para reflejar los nuevos estados "Publicada"
+      await loadReviewsData();
+      updateRespSection();
+    } catch (error) {
+      console.error('Error al publicar respuestas:', error);
+      resultado.innerHTML = `<div class="contacto-notfound-card"><div class="contacto-notfound-title">✗ No se pudo publicar: ${error.message}</div></div>`;
+    } finally {
+      boton.disabled = false;
+      boton.textContent = textoOriginal;
+    }
+  }
+
   async function aprobarRespuesta(boton, idResena) {
     boton.disabled = true;
     boton.classList.add('loading');
