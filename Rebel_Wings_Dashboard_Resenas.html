@@ -796,15 +796,15 @@
         <canvas id="chartPorGerente" height="220"></canvas>
         <div class="chart-insight" id="insightPorGerente"></div>
       </div>
-      <div class="chart-card">
-        <h3>Quejas por sucursal — tendencia mensual</h3>
+      <div class="chart-card" style="grid-column: 1 / -1;">
+        <h3>Quejas por sucursal — tendencia</h3>
         <div class="control-group" style="margin-bottom: 10px;">
           <label for="sucursalTendenciaFilter">Sucursal:</label>
           <select id="sucursalTendenciaFilter">
             <option value="">Todas las sucursales</option>
           </select>
         </div>
-        <canvas id="chartPorSucursal" height="220"></canvas>
+        <canvas id="chartPorSucursal" height="90"></canvas>
         <div class="chart-insight" id="insightPorSucursal"></div>
       </div>
     </div>
@@ -2864,41 +2864,51 @@
   function renderChartPorSucursal(datos) {
     const sucursalFiltro = document.getElementById('sucursalTendenciaFilter').value;
 
-    // Agrupa por sucursal -> mes (clave YYYY-MM), igual que la tendencia general.
-    const porSucursalMes = {}; // sucursal -> { 'YYYY-MM': count }
-    const mesesSet = new Set();
+    // Misma decisión DIARIA vs MENSUAL que la tendencia general, en función
+    // del ancho real del rango filtrado (no de la opción elegida en el select).
+    const startDate = getStartDate('_quejasredes');
+    const endDate = getEndDate('_quejasredes');
+    const diasEnRango = Math.max(1, Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)));
+    const vistaDiaria = diasEnRango <= 45;
+
+    // Agrupa por sucursal -> periodo (clave diaria o mensual).
+    const porSucursalPeriodo = {}; // sucursal -> { clave: count }
+    const periodosSet = new Set();
     datos.forEach(q => {
       const sucursal = q.Sucursal || 'Sin asignar';
       const f = parseFechaFlexible(q['Fecha_Recepción']);
       if (!f) return;
-      const clave = f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
-      mesesSet.add(clave);
-      if (!porSucursalMes[sucursal]) porSucursalMes[sucursal] = {};
-      porSucursalMes[sucursal][clave] = (porSucursalMes[sucursal][clave] || 0) + 1;
+      const clave = vistaDiaria
+        ? f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0')
+        : f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
+      periodosSet.add(clave);
+      if (!porSucursalPeriodo[sucursal]) porSucursalPeriodo[sucursal] = {};
+      porSucursalPeriodo[sucursal][clave] = (porSucursalPeriodo[sucursal][clave] || 0) + 1;
     });
 
-    const meses = [...mesesSet].sort();
-    const labels = meses.map(k => {
+    const periodos = [...periodosSet].sort();
+    const labels = periodos.map(k => {
+      if (vistaDiaria) {
+        const [y, m, d] = k.split('-');
+        return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+      }
       const [y, m] = k.split('-');
       return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
     });
 
     const sucursales = sucursalFiltro
       ? [sucursalFiltro]
-      : Object.keys(porSucursalMes).sort();
+      : Object.keys(porSucursalPeriodo).sort();
 
     const datasets = sucursales.map(s => {
       const destacada = !!sucursalFiltro; // hay una sucursal elegida en el dropdown
-      const [h, s2, l] = (() => {
-        let hash = 0;
-        for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) % 360;
-        return [hash, 65, 55];
-      })();
-      const colorSolido = `hsl(${h}, ${s2}%, ${l}%)`;
-      const colorTenue = `hsla(${h}, ${s2}%, ${l}%, 0.35)`;
+      let hash = 0;
+      for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) % 360;
+      const colorSolido = `hsl(${hash}, 65%, 55%)`;
+      const colorTenue = `hsla(${hash}, 65%, 55%, 0.35)`;
       return {
         label: s,
-        data: meses.map(k => (porSucursalMes[s] && porSucursalMes[s][k]) || 0),
+        data: periodos.map(k => (porSucursalPeriodo[s] && porSucursalPeriodo[s][k]) || 0),
         borderColor: destacada ? colorSolido : colorTenue,
         backgroundColor: colorSolido,
         borderWidth: destacada ? 2.5 : 1,
