@@ -797,9 +797,15 @@
         <div class="chart-insight" id="insightPorGerente"></div>
       </div>
       <div class="chart-card">
-        <h3>Quejas por sucursal/zona</h3>
-        <canvas id="chartPorSucursalZona" height="220"></canvas>
-        <div class="chart-insight" id="insightPorSucursalZona"></div>
+        <h3>Quejas por sucursal — tendencia mensual</h3>
+        <div class="control-group" style="margin-bottom: 10px;">
+          <label for="sucursalTendenciaFilter">Sucursal:</label>
+          <select id="sucursalTendenciaFilter">
+            <option value="">Todas las sucursales</option>
+          </select>
+        </div>
+        <canvas id="chartPorSucursal" height="220"></canvas>
+        <div class="chart-insight" id="insightPorSucursal"></div>
       </div>
     </div>
   </div>
@@ -2844,66 +2850,110 @@
     });
   }
 
-  function renderChartPorSucursalZona(datos) {
-    const mapaZona = window._quejasMapaZona || {};
-    const porSucursal = {}; // sucursal -> total
+  function populateSucursalTendenciaFilter() {
+    const select = document.getElementById('sucursalTendenciaFilter');
+    if (!select || select.dataset.poblado) return; // solo se puebla una vez
+    const todas = getQuejasSeguimiento();
+    const sucursales = [...new Set(todas.map(q => q.Sucursal).filter(Boolean))].sort();
+    select.innerHTML = '<option value="">Todas las sucursales</option>' +
+      sucursales.map(s => `<option value="${s}">${s}</option>`).join('');
+    select.dataset.poblado = '1';
+    select.addEventListener('change', updateQuejasRedesCharts);
+  }
+
+  function renderChartPorSucursal(datos) {
+    const sucursalFiltro = document.getElementById('sucursalTendenciaFilter').value;
+
+    // Agrupa por sucursal -> mes (clave YYYY-MM), igual que la tendencia general.
+    const porSucursalMes = {}; // sucursal -> { 'YYYY-MM': count }
+    const mesesSet = new Set();
     datos.forEach(q => {
       const sucursal = q.Sucursal || 'Sin asignar';
-      porSucursal[sucursal] = (porSucursal[sucursal] || 0) + 1;
+      const f = parseFechaFlexible(q['Fecha_Recepción']);
+      if (!f) return;
+      const clave = f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
+      mesesSet.add(clave);
+      if (!porSucursalMes[sucursal]) porSucursalMes[sucursal] = {};
+      porSucursalMes[sucursal][clave] = (porSucursalMes[sucursal][clave] || 0) + 1;
     });
-    // Top 15 sucursales por volumen de quejas, para que la gráfica siga siendo legible.
-    const labels = Object.keys(porSucursal)
-      .sort((a, b) => porSucursal[b] - porSucursal[a])
-      .slice(0, 15);
-    const colores = labels.map(l => colorDeZona(mapaZona[l] || 'Sin asignar'));
-    const ctx = document.getElementById('chartPorSucursalZona');
+
+    const meses = [...mesesSet].sort();
+    const labels = meses.map(k => {
+      const [y, m] = k.split('-');
+      return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
+    });
+
+    const sucursales = sucursalFiltro
+      ? [sucursalFiltro]
+      : Object.keys(porSucursalMes).sort();
+
+    const datasets = sucursales.map(s => {
+      const destacada = !!sucursalFiltro; // hay una sucursal elegida en el dropdown
+      const [h, s2, l] = (() => {
+        let hash = 0;
+        for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) % 360;
+        return [hash, 65, 55];
+      })();
+      const colorSolido = `hsl(${h}, ${s2}%, ${l}%)`;
+      const colorTenue = `hsla(${h}, ${s2}%, ${l}%, 0.35)`;
+      return {
+        label: s,
+        data: meses.map(k => (porSucursalMes[s] && porSucursalMes[s][k]) || 0),
+        borderColor: destacada ? colorSolido : colorTenue,
+        backgroundColor: colorSolido,
+        borderWidth: destacada ? 2.5 : 1,
+        pointRadius: destacada ? 3 : 0,
+        tension: 0.3,
+        fill: false,
+      };
+    });
+
+    const ctx = document.getElementById('chartPorSucursal');
     return new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Quejas',
-          data: labels.map(l => porSucursal[l]),
-          backgroundColor: colores,
-        }],
-      },
+      type: 'line',
+      data: { labels, datasets },
       options: {
         responsive: true,
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+        plugins: {
+          legend: { display: !!sucursalFiltro }, // con "todas" seleccionadas, 51 leyendas no caben ni ayudan
+        },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
       },
     });
   }
 
-  function insightPorSucursalZona(datos) {
-    const mapaZona = window._quejasMapaZona || {};
+  function insightPorSucursal(datos) {
+    const sucursalFiltro = document.getElementById('sucursalTendenciaFilter').value;
     const porSucursal = {};
     datos.forEach(q => {
       const sucursal = q.Sucursal || 'Sin asignar';
       porSucursal[sucursal] = (porSucursal[sucursal] || 0) + 1;
     });
+    if (sucursalFiltro) {
+      const total = porSucursal[sucursalFiltro] || 0;
+      return `<strong>${sucursalFiltro}</strong> registra ${total} queja(s) en el periodo seleccionado.`;
+    }
     const entradas = Object.entries(porSucursal).sort((a, b) => b[1] - a[1]);
     if (entradas.length === 0) return 'Sin quejas en el periodo seleccionado.';
     const [topNombre, topTotal] = entradas[0];
-    const topZona = mapaZona[topNombre] || 'Sin asignar';
-    return `<strong>${topNombre}</strong> (zona ${topZona}) concentra el mayor número de quejas: ${topTotal}.`;
+    return `<strong>${topNombre}</strong> concentra el mayor número de quejas: ${topTotal}. Usa el filtro de sucursal para aislar su tendencia mensual.`;
   }
 
   function updateQuejasRedesCharts() {
+    populateSucursalTendenciaFilter();
     const datos = getQuejasRedesPorPeriodo();
 
     if (window._quejasRedesCharts) {
       window._quejasRedesCharts.forEach(c => c && c.destroy());
     }
 
-    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente', 'insightPorSucursalZona'];
+    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente', 'insightPorSucursal'];
     if (datos.length === 0) {
       // Sin datos en el periodo elegido: se limpian canvas e insights en
       // vez de dejar la gráfica/comentario de la corrida anterior.
       window._quejasRedesCharts = [];
       vacios.forEach(id => { document.getElementById(id).innerHTML = ''; });
-      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente', 'chartPorSucursalZona'].forEach(id => {
+      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente', 'chartPorSucursal'].forEach(id => {
         const ctx = document.getElementById(id).getContext('2d');
         ctx.clearRect(0, 0, 9999, 9999);
       });
@@ -2915,7 +2965,7 @@
       renderChartPorCanal(datos),
       renderChartPorCategoria(datos),
       renderChartPorGerente(datos),
-      renderChartPorSucursalZona(datos),
+      renderChartPorSucursal(datos),
     ];
 
     generarInsightsQuejasRedes(datos);
@@ -2935,7 +2985,7 @@
     document.getElementById('insightPorCanal').innerHTML = insightCanal(datos);
     document.getElementById('insightPorCategoria').innerHTML = insightCategoria(datos);
     document.getElementById('insightPorGerente').innerHTML = insightGerente(datos);
-    document.getElementById('insightPorSucursalZona').innerHTML = insightPorSucursalZona(datos);
+    document.getElementById('insightPorSucursal').innerHTML = insightPorSucursal(datos);
   }
 
   function insightTendencia(datos) {
