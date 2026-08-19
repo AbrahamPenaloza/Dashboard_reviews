@@ -796,6 +796,11 @@
         <canvas id="chartPorGerente" height="220"></canvas>
         <div class="chart-insight" id="insightPorGerente"></div>
       </div>
+      <div class="chart-card">
+        <h3>Quejas por sucursal/zona</h3>
+        <canvas id="chartPorSucursalZona" height="220"></canvas>
+        <div class="chart-insight" id="insightPorSucursalZona"></div>
+      </div>
     </div>
   </div>
 
@@ -2839,6 +2844,52 @@
     });
   }
 
+  function renderChartPorSucursalZona(datos) {
+    const mapaZona = window._quejasMapaZona || {};
+    const porSucursal = {}; // sucursal -> total
+    datos.forEach(q => {
+      const sucursal = q.Sucursal || 'Sin asignar';
+      porSucursal[sucursal] = (porSucursal[sucursal] || 0) + 1;
+    });
+    // Top 15 sucursales por volumen de quejas, para que la gráfica siga siendo legible.
+    const labels = Object.keys(porSucursal)
+      .sort((a, b) => porSucursal[b] - porSucursal[a])
+      .slice(0, 15);
+    const colores = labels.map(l => colorDeZona(mapaZona[l] || 'Sin asignar'));
+    const ctx = document.getElementById('chartPorSucursalZona');
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Quejas',
+          data: labels.map(l => porSucursal[l]),
+          backgroundColor: colores,
+        }],
+      },
+      options: {
+        responsive: true,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+  }
+
+  function insightPorSucursalZona(datos) {
+    const mapaZona = window._quejasMapaZona || {};
+    const porSucursal = {};
+    datos.forEach(q => {
+      const sucursal = q.Sucursal || 'Sin asignar';
+      porSucursal[sucursal] = (porSucursal[sucursal] || 0) + 1;
+    });
+    const entradas = Object.entries(porSucursal).sort((a, b) => b[1] - a[1]);
+    if (entradas.length === 0) return 'Sin quejas en el periodo seleccionado.';
+    const [topNombre, topTotal] = entradas[0];
+    const topZona = mapaZona[topNombre] || 'Sin asignar';
+    return `<strong>${topNombre}</strong> (zona ${topZona}) concentra el mayor número de quejas: ${topTotal}.`;
+  }
+
   function updateQuejasRedesCharts() {
     const datos = getQuejasRedesPorPeriodo();
 
@@ -2846,13 +2897,13 @@
       window._quejasRedesCharts.forEach(c => c && c.destroy());
     }
 
-    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente'];
+    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente', 'insightPorSucursalZona'];
     if (datos.length === 0) {
       // Sin datos en el periodo elegido: se limpian canvas e insights en
       // vez de dejar la gráfica/comentario de la corrida anterior.
       window._quejasRedesCharts = [];
       vacios.forEach(id => { document.getElementById(id).innerHTML = ''; });
-      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente'].forEach(id => {
+      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente', 'chartPorSucursalZona'].forEach(id => {
         const ctx = document.getElementById(id).getContext('2d');
         ctx.clearRect(0, 0, 9999, 9999);
       });
@@ -2864,6 +2915,7 @@
       renderChartPorCanal(datos),
       renderChartPorCategoria(datos),
       renderChartPorGerente(datos),
+      renderChartPorSucursalZona(datos),
     ];
 
     generarInsightsQuejasRedes(datos);
@@ -2883,6 +2935,7 @@
     document.getElementById('insightPorCanal').innerHTML = insightCanal(datos);
     document.getElementById('insightPorCategoria').innerHTML = insightCategoria(datos);
     document.getElementById('insightPorGerente').innerHTML = insightGerente(datos);
+    document.getElementById('insightPorSucursalZona').innerHTML = insightPorSucursalZona(datos);
   }
 
   function insightTendencia(datos) {
