@@ -2913,6 +2913,13 @@
         backgroundColor: colorSolido,
         borderWidth: destacada ? 2.5 : 1,
         pointRadius: destacada ? 3 : 0,
+        // pointHitRadius agranda el área invisible de detección alrededor de
+        // cada punto (aunque no se vea, sigue siendo "cazable" con el mouse),
+        // y pointHoverRadius hace visible el punto solo al pasar el cursor —
+        // así se puede identificar cada sucursal en modo "todas" sin saturar
+        // la gráfica con 51 puntos fijos.
+        pointHitRadius: 8,
+        pointHoverRadius: destacada ? 5 : 4,
         tension: 0.3,
         fill: false,
       };
@@ -2924,8 +2931,32 @@
       data: { labels, datasets },
       options: {
         responsive: true,
+        // 'nearest' + intersect:false: basta con acercar el cursor a la línea
+        // (no hay que acertarle al pixel exacto) para que el tooltip muestre
+        // esa sucursal — clave cuando las líneas son delgadas y están encimadas.
+        interaction: { mode: 'nearest', intersect: false },
         plugins: {
           legend: { display: !!sucursalFiltro }, // con "todas" seleccionadas, 51 leyendas no caben ni ayudan
+          tooltip: {
+            callbacks: {
+              // Resalta el nombre de la sucursal en negrita-implícita (primera línea)
+              // antes del valor, para que quede claro a cuál línea perteneces al pasar el mouse.
+              title: (items) => items.length ? items[0].dataset.label : '',
+              label: (item) => `Quejas: ${item.formattedValue}`,
+            },
+          },
+        },
+        // Clic sobre cualquier línea en modo "todas" -> filtra el dropdown a esa
+        // sucursal, para pasar de "identificar" a "aislar" en un solo clic.
+        onClick: (evt, elements, chart) => {
+          if (!elements.length) return;
+          const datasetIndex = elements[0].datasetIndex;
+          const nombre = chart.data.datasets[datasetIndex].label;
+          const select = document.getElementById('sucursalTendenciaFilter');
+          if (select.value !== nombre) {
+            select.value = nombre;
+            updateQuejasRedesCharts();
+          }
         },
         scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
       },
