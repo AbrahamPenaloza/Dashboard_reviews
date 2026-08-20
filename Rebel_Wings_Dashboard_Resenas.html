@@ -318,10 +318,16 @@
   .segu-meta { font-size: 12px; color: #999; margin-bottom: 8px; }
   .segu-desc { font-size: 13px; color: #444; margin-bottom: 10px; white-space: pre-line; }
   .segu-notas { font-size: 13px; color: #666; background: #fafafa; border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; white-space: pre-line; }
-  .segu-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .segu-actions input[type="text"] {
+  .segu-actions { display: flex; flex-direction: column; gap: 8px; }
+  .segu-actions-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .segu-actions input[type="text"], .segu-actions select {
     border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 13px; flex: 1; min-width: 140px;
   }
+  .segu-actions textarea {
+    border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 13px; width: 100%;
+    box-sizing: border-box; resize: vertical; min-height: 44px; font-family: inherit;
+  }
+  .segu-field-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
   .btn-segu {
     border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
   }
@@ -2401,9 +2407,18 @@
   // token compartido (mismo APROBACION_TOKEN) más un campo de nombre
   // que la persona llena al actuar, para dejar rastro de auditoría sin
   // gestionar credenciales por persona.
-  //   - Supervisor: Nueva -> En Proceso (con nota de seguimiento)
-  //   - Gerente: cualquier estado -> Cerrada (con nota de cierre;
-  //     calcula Tiempo_Resolución_Dias automáticamente)
+  //   - Supervisor: Nueva -> En Proceso. Escribe su nombre + la acción
+  //     a tomar (obligatoria) para resolver la queja.
+  //   - Gerente: En Proceso -> Cerrada (único rol que puede cerrar; se
+  //     identifica con un selector de los 6 gerentes, no nombre libre,
+  //     para que no se pueda fingir el rol). Escribe cómo se resolvió
+  //     / si la acción del supervisor fue correcta (obligatorio).
+  //     Calcula Tiempo_Resolución_Dias automáticamente.
+  //   Nota: una queja "Nueva" ya NO puede cerrarse directamente — debe
+  //   pasar primero por "En Proceso", para forzar que quede registrada
+  //   la acción del supervisor antes del cierre.
+
+  const GERENTES_LISTA = ['Israel', 'Edith', 'Carlos', 'Chris', 'Román', 'Zona San Luis'];
 
   function esQuejaDeRedes(canalOrigen) {
     // El tiempo de resolución solo aplica a canales con contacto directo
@@ -2494,20 +2509,32 @@
   // depende de que el cliente responda con el folio, no de seguimiento
   // proactivo del equipo.
   function getQuejasSeguimiento() {
-    return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']));
+    // Excluye las quejas marcadas Excluir_Seguimiento="Sí" — el corte
+    // limpio pedido por Abraham el 20 ago 2026 antes de activar el
+    // módulo con los gerentes: son casos ya resueltos manualmente antes
+    // de que el sistema de seguimiento existiera, así que no deben
+    // aparecer como pendientes ni contar en el ranking de nadie. Solo
+    // afecta esta función (Seguimiento operativo) y renderChartPorGerente/
+    // insightGerente — las demás gráficas de "Quejas Redes Sociales"
+    // siguen usando el histórico completo sin este filtro.
+    return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']) && q['Excluir_Seguimiento'] !== 'Sí');
   }
 
-  // Para las 4 gráficas: además del filtro de redes (igual que
-  // getQuejasSeguimiento), aplica el selector de periodo independiente
-  // "_quejasredes". A propósito NO se usa esta versión para la sección
-  // 🎯 Seguimiento de Quejas (KPIs, ranking, lista) — esa sección es la
-  // vista operativa de "qué necesita atención hoy" y debe mostrar
-  // siempre el panorama completo, sin que un filtro de periodo pensado
-  // para reportes históricos oculte una queja activa por accidente.
+  // Para las 4 gráficas: además del filtro de redes, aplica el selector
+  // de periodo independiente "_quejasredes". A propósito usa quejasData
+  // directo (sin el filtro Excluir_Seguimiento de getQuejasSeguimiento):
+  // estas gráficas deben conservar el histórico completo — solo
+  // renderChartPorGerente/insightGerente aplican esa exclusión por su
+  // cuenta, más abajo, para arrancar en cero con los gerentes.
+  // Tampoco se usa esta versión para la sección 🎯 Seguimiento de Quejas
+  // (KPIs, ranking, lista) — esa sección es la vista operativa de "qué
+  // necesita atención hoy" y debe mostrar siempre el panorama completo,
+  // sin que un filtro de periodo pensado para reportes históricos oculte
+  // una queja activa por accidente.
   function getQuejasRedesPorPeriodo() {
     const startDate = getStartDate('_quejasredes');
     const endDate = getEndDate('_quejasredes');
-    return getQuejasSeguimiento().filter(q => {
+    return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen'])).filter(q => {
       // Las gráficas reflejan el histórico REAL, a diferencia de las
       // alertas de Seguimiento — por eso aquí sí usamos Fecha_Recepción
       // directa (fecha original de la queja), no fechaReferenciaSeguimiento
@@ -2614,11 +2641,40 @@
       const folio = q['Folio_Público'] || '';
       const quejaId = q['Queja_ID'] || '';
 
-      const botonesAccion = estatus === 'Cerrada' ? '' : `
-        <input type="text" id="seguNombre-${quejaId}" placeholder="Tu nombre" />
-        ${estatus === 'Nueva' ? `<button class="btn-segu proceso" onclick="marcarEnProceso('${quejaId}')">Marcar En Proceso</button>` : ''}
-        <button class="btn-segu cerrar" onclick="cerrarQueja('${quejaId}')">Cerrar caso</button>
-      `;
+      let botonesAccion = '';
+      if (estatus === 'Nueva') {
+        // Supervisor: registra su nombre y la acción a tomar antes de poder avanzar el caso.
+        botonesAccion = `
+          <div class="segu-actions-row">
+            <input type="text" id="seguNombre-${quejaId}" placeholder="Tu nombre (supervisor)" />
+          </div>
+          <div>
+            <div class="segu-field-label">Acción a tomar</div>
+            <textarea id="seguAccion-${quejaId}" placeholder="Describe qué se va a hacer para resolver esta queja…"></textarea>
+          </div>
+          <div class="segu-actions-row">
+            <button class="btn-segu proceso" onclick="marcarEnProceso('${quejaId}')">Marcar En Proceso</button>
+          </div>
+        `;
+      } else if (estatus === 'En Proceso') {
+        // Gerente: único rol que puede cerrar. Se identifica por selector (no nombre libre)
+        // y debe documentar cómo se resolvió antes de poder cerrar el caso.
+        botonesAccion = `
+          <div class="segu-actions-row">
+            <select id="seguGerenteCierre-${quejaId}">
+              <option value="">Selecciona el gerente que cierra…</option>
+              ${GERENTES_LISTA.map(g => `<option value="${g}">${g}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <div class="segu-field-label">Cómo se resolvió / si la acción fue correcta</div>
+            <textarea id="seguResolucion-${quejaId}" placeholder="Describe la resolución final y si la acción del supervisor fue adecuada…"></textarea>
+          </div>
+          <div class="segu-actions-row">
+            <button class="btn-segu cerrar" onclick="cerrarQueja('${quejaId}')">Cerrar caso</button>
+          </div>
+        `;
+      }
 
       return `
         <div class="segu-card ${enAlerta ? 'alerta' : ''}" id="segu-card-${quejaId}">
@@ -2640,14 +2696,7 @@
     }).join('') + (filtered.length > 50 ? `<div class="placeholder">Mostrando 50 de ${filtered.length}.</div>` : '');
   }
 
-  async function enviarAccionSeguimiento(quejaId, accion, boton) {
-    const nombreInput = document.getElementById('seguNombre-' + quejaId);
-    const nombre = nombreInput ? nombreInput.value.trim() : '';
-    if (!nombre) {
-      alert('Escribe tu nombre antes de continuar — queda registrado en la nota de seguimiento.');
-      return;
-    }
-
+  async function enviarAccionSeguimiento(quejaId, accion, nombre, textoExtra, boton) {
     boton.disabled = true;
     const textoOriginal = boton.textContent;
     boton.textContent = 'Guardando…';
@@ -2656,7 +2705,7 @@
       const response = await fetch(SEGUIMIENTO_WEBAPP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ quejaId, accion, nombre, token: APROBACION_TOKEN }),
+        body: JSON.stringify({ quejaId, accion, nombre, textoExtra, token: APROBACION_TOKEN }),
       });
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido.');
@@ -2666,8 +2715,8 @@
       if (fila) {
         fila.Estatus = accion === 'cerrar' ? 'Cerrada' : 'En Proceso';
         const notaNueva = accion === 'cerrar'
-          ? `Cerrado por ${nombre}.`
-          : `En proceso por ${nombre}.`;
+          ? `Cerrado por ${nombre}. Resolución: ${textoExtra}`
+          : `En proceso por ${nombre}. Acción a tomar: ${textoExtra}`;
         fila['Notas_Seguimiento'] = fila['Notas_Seguimiento'] ? (fila['Notas_Seguimiento'] + '\n' + notaNueva) : notaNueva;
       }
       updateSeguKpis();
@@ -2682,13 +2731,41 @@
   }
 
   function marcarEnProceso(quejaId) {
+    const nombreInput = document.getElementById('seguNombre-' + quejaId);
+    const accionInput = document.getElementById('seguAccion-' + quejaId);
+    const nombre = nombreInput ? nombreInput.value.trim() : '';
+    const accionTexto = accionInput ? accionInput.value.trim() : '';
+
+    if (!nombre) {
+      alert('Escribe tu nombre antes de continuar — queda registrado en la nota de seguimiento.');
+      return;
+    }
+    if (!accionTexto) {
+      alert('Describe la acción a tomar antes de marcar En Proceso.');
+      return;
+    }
+
     const boton = document.querySelector(`#segu-card-${quejaId} .btn-segu.proceso`);
-    enviarAccionSeguimiento(quejaId, 'en_proceso', boton);
+    enviarAccionSeguimiento(quejaId, 'en_proceso', nombre, accionTexto, boton);
   }
 
   function cerrarQueja(quejaId) {
+    const gerenteSelect = document.getElementById('seguGerenteCierre-' + quejaId);
+    const resolucionInput = document.getElementById('seguResolucion-' + quejaId);
+    const gerente = gerenteSelect ? gerenteSelect.value : '';
+    const resolucionTexto = resolucionInput ? resolucionInput.value.trim() : '';
+
+    if (!gerente) {
+      alert('Selecciona qué gerente está cerrando el caso — solo gerentes pueden cerrar quejas.');
+      return;
+    }
+    if (!resolucionTexto) {
+      alert('Describe cómo se resolvió antes de cerrar el caso.');
+      return;
+    }
+
     const boton = document.querySelector(`#segu-card-${quejaId} .btn-segu.cerrar`);
-    enviarAccionSeguimiento(quejaId, 'cerrar', boton);
+    enviarAccionSeguimiento(quejaId, 'cerrar', gerente, resolucionTexto, boton);
   }
 
   // ============================================
@@ -2814,17 +2891,34 @@
     });
   }
 
+  // "Volumen y resolución por gerente" es la ÚNICA de las 4 gráficas de
+  // este bloque que excluye las quejas marcadas Excluir_Seguimiento="Sí"
+  // (el reseteo de conteo pedido por Abraham el 20 ago 2026, antes de
+  // activar el módulo con los gerentes). Las otras 3 (tendencia, canal,
+  // categoría) siguen mostrando el histórico completo sin filtrar, tal
+  // como se decidió: "el histórico solo sirve para las gráficas excepto
+  // la de volumen y resolución". Por eso NO usa el mismo array `datos`
+  // que las demás — arma su propio dataset a partir de datos.
   function renderChartPorGerente(datos) {
+    const datosElegibles = datos.filter(q => q['Excluir_Seguimiento'] !== 'Sí');
     const mapaZona = window._quejasMapaZona || {};
     const porGerente = {}; // gerente -> { total, cerradas }
-    datos.forEach(q => {
+    datosElegibles.forEach(q => {
       const gerente = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
       if (!porGerente[gerente]) porGerente[gerente] = { total: 0, cerradas: 0 };
       porGerente[gerente].total++;
       if (q.Estatus === 'Cerrada') porGerente[gerente].cerradas++;
     });
     const labels = Object.keys(porGerente).sort((a, b) => porGerente[b].total - porGerente[a].total);
+
     const ctx = document.getElementById('chartPorGerente');
+    if (labels.length === 0) {
+      // Justo lo esperado al arrancar limpio: sin casos nuevos post-activación
+      // todavía, no hay nada que graficar para ningún gerente.
+      ctx.getContext('2d').clearRect(0, 0, 9999, 9999);
+      return null;
+    }
+
     return new Chart(ctx, {
       type: 'bar',
       data: {
@@ -2853,7 +2947,12 @@
   function populateSucursalTendenciaFilter() {
     const select = document.getElementById('sucursalTendenciaFilter');
     if (!select || select.dataset.poblado) return; // solo se puebla una vez
-    const todas = getQuejasSeguimiento();
+    // A propósito usa quejasData sin el filtro de Excluir_Seguimiento
+    // (a diferencia de getQuejasSeguimiento): esta gráfica de tendencia
+    // por sucursal debe seguir viva con el histórico completo, así que
+    // su selector no debe perder sucursales que solo tengan quejas
+    // marcadas como excluidas del módulo de Seguimiento operativo.
+    const todas = quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']));
     const sucursales = [...new Set(todas.map(q => q.Sucursal).filter(Boolean))].sort();
     select.innerHTML = '<option value="">Todas las sucursales</option>' +
       sucursales.map(s => `<option value="${s}">${s}</option>`).join('');
@@ -3093,16 +3192,19 @@
   }
 
   function insightGerente(datos) {
+    // Misma exclusión que renderChartPorGerente: el insight debe hablar
+    // de lo mismo que la gráfica de al lado, o el texto contradice el dibujo.
+    const datosElegibles = datos.filter(q => q['Excluir_Seguimiento'] !== 'Sí');
     const mapaZona = window._quejasMapaZona || {};
     const porGerente = {};
-    datos.forEach(q => {
+    datosElegibles.forEach(q => {
       const g = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
       if (!porGerente[g]) porGerente[g] = { total: 0, cerradas: 0 };
       porGerente[g].total++;
       if (q.Estatus === 'Cerrada') porGerente[g].cerradas++;
     });
     const entradas = Object.entries(porGerente).filter(([, v]) => v.total >= 2); // evita ruido de N muy chico
-    if (entradas.length === 0) return '<strong>Lectura:</strong> Sin datos suficientes por gerente en este periodo.';
+    if (entradas.length === 0) return '<strong>Lectura:</strong> Aún no hay casos nuevos registrados desde la activación del módulo de seguimiento — esta gráfica empezará a poblarse con los próximos casos de cada gerente.';
 
     const conPct = entradas.map(([g, v]) => ({ gerente: g, total: v.total, pct: Math.round((v.cerradas / v.total) * 100) }));
     const mejor = conPct.reduce((a, b) => (b.pct > a.pct ? b : a));
