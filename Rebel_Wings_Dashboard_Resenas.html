@@ -426,6 +426,15 @@
     padding: 10px 12px;
     margin: 10px 0;
   }
+  .contacto-reopen-aviso {
+    font-size: 13px;
+    color: #7a4a00;
+    background: #fff3e0;
+    border: 1px solid #ffcc80;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 0 0 10px;
+  }
   .contacto-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -819,7 +828,7 @@
   <div class="section">
     <h2>📞 Registrar Contacto por Redes Sociales</h2>
     <p style="font-size:13px; color:#666; margin-bottom:16px;">
-      Cuando un cliente escriba por Instagram, Facebook o WhatsApp mencionando un folio (ej. RW-EDI-0374), búscalo aquí. Si el folio ya existe (viene de una reseña de Google), se agrega como nota a esa misma queja — así evitamos duplicarla. Si no existe, puedes registrarla como una queja nueva.
+      Cuando un cliente escriba por Instagram, Facebook o WhatsApp mencionando un folio (ej. RW-EDI-0374), búscalo aquí. Si el folio ya existe (viene de una reseña de Google), se activa como queja de seguimiento — sin duplicarla — porque el contacto real del cliente es lo que dispara la atención, incluso si ya estaba cerrada. Si no existe, puedes registrarla como una queja nueva.
     </p>
     <div class="contacto-buscar-row">
       <input type="text" id="contactoFolioInput" placeholder="Folio (ej. RW-EDI-0374)" />
@@ -3269,14 +3278,28 @@
     const fechaObj = parseFechaFlexible(queja['Fecha_Recepción']);
     const fecha = fechaObj ? fechaObj.toLocaleDateString('es-MX') : '';
     const quejaId = queja['Queja_ID'] || '';
+    const estatusActual = queja.Estatus || 'Nueva';
+    const seReabrira = estatusActual === 'Cerrada';
+
+    // El folio queda registrado desde que nace en Google (para gráficas/
+    // conteos de reseñas eso no cambia). Pero el criterio de seguimiento es
+    // otro: la queja no se considera "atendible" hasta que el cliente
+    // efectivamente se comunica. Por eso, confirmar contacto por redes
+    // siempre manda la queja de vuelta a la cola activa ('Nueva'), incluso
+    // si ya estaba Cerrada — el contacto del cliente es lo que reabre el
+    // caso, no un límite de tiempo.
+    const avisoReapertura = seReabrira
+      ? `<div class="contacto-reopen-aviso">⚠ Esta queja estaba <strong>Cerrada</strong>. Al confirmar el contacto se reabrirá y volverá a la cola de seguimiento activo.</div>`
+      : '';
 
     container.innerHTML = `
       <div class="contacto-found-card">
-        <div class="contacto-found-title">✓ Folio encontrado — se agregará como nota, sin crear una queja nueva</div>
+        <div class="contacto-found-title">✓ Folio encontrado — se activará para seguimiento desde Redes Sociales</div>
         <div class="contacto-preview">
-          <strong>${queja.Sucursal || ''}</strong> · ${fecha} · ${queja['Categoría'] || ''} · Estatus: ${queja.Estatus || 'Nueva'}<br>
+          <strong>${queja.Sucursal || ''}</strong> · ${fecha} · ${queja['Categoría'] || ''} · Estatus actual: ${estatusActual}<br>
           ${(queja['Descripción'] || '').slice(0, 200)}
         </div>
+        ${avisoReapertura}
         <div class="contacto-form-grid">
           <div>
             <label>Tu nombre</label>
@@ -3297,7 +3320,7 @@
             <textarea id="contactoDetalle-${quejaId}" placeholder="Ej. Cliente escribió por Instagram confirmando su número: 55..."></textarea>
           </div>
         </div>
-        <button class="btn-segu proceso" onclick="enviarContactoEnlazar('${quejaId}', '${folio}')">Agregar nota a esta queja</button>
+        <button class="btn-segu proceso" onclick="enviarContactoEnlazar('${quejaId}', '${folio}')">Confirmar contacto y activar seguimiento</button>
       </div>
     `;
   }
@@ -3387,19 +3410,39 @@
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido.');
 
-      // Refleja el cambio localmente
+      // Refleja el cambio localmente. El folio nace y se cuenta como
+      // reseña de Google para gráficas/métricas (eso no se toca). Pero
+      // para seguimiento, el contacto real del cliente por redes es lo
+      // que activa/reabre el caso — por eso siempre vuelve a 'Nueva',
+      // incluso si estaba 'Cerrada'.
       const fila = quejasData.find(q => q['Queja_ID'] === quejaId);
+      let estabaCerrada = false;
       if (fila) {
+        estabaCerrada = fila.Estatus === 'Cerrada';
+        fila.Estatus = 'Nueva';
         fila['Canal_Secundario'] = canal;
-        const notaNueva = `Contacto por ${canal} registrado por ${nombre}: ${detalle}`;
+        const notaNueva = estabaCerrada
+          ? `Reabierta: contacto por ${canal} registrado por ${nombre}: ${detalle}`
+          : `Contacto por ${canal} registrado por ${nombre}: ${detalle}`;
         fila['Notas_Seguimiento'] = fila['Notas_Seguimiento'] ? (fila['Notas_Seguimiento'] + '\n' + notaNueva) : notaNueva;
       }
-      document.getElementById('contactoResultado').innerHTML = `<div class="contacto-found-card"><div class="contacto-found-title">✓ Nota agregada correctamente a ${folio}.</div></div>`;
+
+      // Igual que al aprobar/procesar/cerrar desde el módulo de Seguimiento:
+      // refresca KPIs, ranking y la lista para que la queja aparezca de
+      // inmediato como activa, sin esperar un reload completo.
+      updateSeguKpis();
+      updateSeguRanking();
+      renderSeguimiento();
+
+      const mensajeConfirmacion = estabaCerrada
+        ? `✓ Contacto confirmado. La queja ${folio} se reabrió y volvió a la cola de seguimiento activo.`
+        : `✓ Contacto confirmado. La queja ${folio} está activa en seguimiento.`;
+      document.getElementById('contactoResultado').innerHTML = `<div class="contacto-found-card"><div class="contacto-found-title">${mensajeConfirmacion}</div></div>`;
       document.getElementById('contactoFolioInput').value = '';
     } catch (error) {
       console.error('Error al enlazar contacto:', error);
       boton.disabled = false;
-      boton.textContent = 'Agregar nota a esta queja';
+      boton.textContent = 'Confirmar contacto y activar seguimiento';
       alert('No se pudo guardar: ' + error.message);
     }
   }
