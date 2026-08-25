@@ -2437,6 +2437,26 @@
     return canalOrigen && canalOrigen !== 'Google Maps';
   }
 
+  // Variante "operativa": además del canal de origen, reconoce
+  // Canal_Secundario como contacto directo válido. Existe para el caso
+  // de una queja que NACIÓ de una reseña de Google (Canal_Origen =
+  // 'Google Maps', y así debe quedarse — eso es lo que cuentan las
+  // gráficas de tendencia histórica) pero cuyo cliente luego SÍ
+  // escribió por Facebook/Instagram/WhatsApp para confirmar contacto
+  // (enviarContactoEnlazar guarda ese canal en Canal_Secundario). Desde
+  // ese momento hay contacto directo real con el cliente, así que debe
+  // entrar a la cola de atención activa — aunque su Canal_Origen para
+  // fines de reporte histórico siga diciendo Google Maps.
+  //
+  // Usar SOLO en las vistas operativas (Seguimiento de Quejas, ranking
+  // por gerente) — NO en las 4 gráficas de "Quejas Redes Sociales"
+  // (getQuejasRedes, getQuejasRedesPorPeriodo, populateSucursalTendenciaFilter),
+  // que a propósito solo cuentan Canal_Origen puro para no mezclar el
+  // volumen de Google en esas proporciones.
+  function esQuejaDeRedesOperativa(q) {
+    return esQuejaDeRedes(q['Canal_Origen']) || !!q['Canal_Secundario'];
+  }
+
   // Para filas migradas de Bitácora (Queja_ID = "MIG-YYYYMMDD-N"), el
   // contador de urgencia (alerta de "sin atender" y tiempo de resolución)
   // debe arrancar desde la fecha de MIGRACIÓN, no la fecha original de
@@ -2526,7 +2546,7 @@
     // afecta esta función (Seguimiento operativo) y renderChartPorGerente/
     // insightGerente — las demás gráficas de "Quejas Redes Sociales"
     // siguen usando el histórico completo sin este filtro.
-    return quejasData.filter(q => esQuejaDeRedes(q['Canal_Origen']) && q['Excluir_Seguimiento'] !== 'Sí');
+    return quejasData.filter(q => esQuejaDeRedesOperativa(q) && q['Excluir_Seguimiento'] !== 'Sí');
   }
 
   // Para las 4 gráficas: además del filtro de redes, aplica el selector
@@ -2548,6 +2568,25 @@
       // alertas de Seguimiento — por eso aquí sí usamos Fecha_Recepción
       // directa (fecha original de la queja), no fechaReferenciaSeguimiento
       // (que para filas migradas usa la fecha de migración a propósito).
+      const f = parseFechaFlexible(q['Fecha_Recepción']);
+      return f && f >= startDate && f <= endDate;
+    });
+  }
+
+  // Fuente específica para "Volumen y resolución por gerente" (la única
+  // gráfica de este apartado que debe incluir TAMBIÉN las quejas
+  // reactivadas desde Google vía contacto por redes, no solo las
+  // nacidas en redes). Decisión de Abraham (24 ago 2026): esa gráfica
+  // debe reflejar "todas las quejas con cliente contactado" bajo cada
+  // gerente, sea que hayan nacido en Facebook/Instagram/WhatsApp o que
+  // hayan sido reactivadas desde una reseña de Google — pero sigue
+  // respetando el selector de periodo, a diferencia de Seguimiento
+  // operativo (que siempre muestra el panorama completo actual), para
+  // poder comparar el desempeño de un gerente entre distintos periodos.
+  function getQuejasGerentePorPeriodo() {
+    const startDate = getStartDate('_quejasredes');
+    const endDate = getEndDate('_quejasredes');
+    return quejasData.filter(q => esQuejaDeRedesOperativa(q)).filter(q => {
       const f = parseFechaFlexible(q['Fecha_Recepción']);
       return f && f >= startDate && f <= endDate;
     });
@@ -3113,7 +3152,7 @@
       renderChartTendenciaMensual(datos),
       renderChartPorCanal(datos),
       renderChartPorCategoria(datos),
-      renderChartPorGerente(datos),
+      renderChartPorGerente(getQuejasGerentePorPeriodo()),
       renderChartPorSucursal(datos),
     ];
 
@@ -3133,7 +3172,7 @@
     document.getElementById('insightTendenciaMensual').innerHTML = insightTendencia(datos);
     document.getElementById('insightPorCanal').innerHTML = insightCanal(datos);
     document.getElementById('insightPorCategoria').innerHTML = insightCategoria(datos);
-    document.getElementById('insightPorGerente').innerHTML = insightGerente(datos);
+    document.getElementById('insightPorGerente').innerHTML = insightGerente(getQuejasGerentePorPeriodo());
     document.getElementById('insightPorSucursal').innerHTML = insightPorSucursal(datos);
   }
 
