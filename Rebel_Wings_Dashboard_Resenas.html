@@ -1162,12 +1162,17 @@
     select.value = String(quejasCortes.length - 1); // corte más reciente por defecto
     select.addEventListener('change', updateQuejasModule);
     
-    // Mapeo sucursal -> zona/gerente, construido a partir de "Métricas" (allData),
+    // Mapeo sucursal -> zona, construido a partir de "Métricas" (allData),
     // que sí trae ese campo por fila. La hoja "Reseñas" (reviewsData, base de este
     // módulo) no lo trae, así que se cruza por nombre de sucursal.
+    // CAMBIO (28 ago 2026): antes leía 'Zona/Gerente' (mezclaba zona y persona,
+    // y con Román rompía distinguir Querétaro-Norte de Querétaro-Sur). Ahora lee
+    // la columna nueva 'Zona' (identificador estable), poblada por la migración
+    // Migracion_Zona_Gerente.gs. Como todos los filtros/charts de este módulo
+    // leen de window._quejasMapaZona, este es el único punto que hay que tocar.
     const mapaZona = {};
     allData.forEach(row => {
-      if (row.Sucursal && row['Zona/Gerente']) mapaZona[row.Sucursal] = row['Zona/Gerente'];
+      if (row.Sucursal && row['Zona']) mapaZona[row.Sucursal] = row['Zona'];
     });
     window._quejasMapaZona = mapaZona; // reutilizado por updateQuejasModule y populateQuejasSucursalFilter
     
@@ -1471,7 +1476,7 @@
   function updateManagerChart(data) {
     const byZone = {};
     data.forEach(row => {
-      const zone = row['Zona/Gerente'] || 'Sin asignar';
+      const zone = row['Zona'] || 'Sin asignar';
       if (!byZone[zone]) byZone[zone] = { neg: 0, total: 0 };
       byZone[zone].neg += row['Cantidad Neg (1-2)'] || 0;
       byZone[zone].total += row['Total Reseñas'] || 0;
@@ -1574,7 +1579,7 @@
   function updateManagerZoneGrid(data) {
     const byZone = {};
     data.forEach(row => {
-      const zone = row['Zona/Gerente'] || 'Sin asignar';
+      const zone = row['Zona'] || 'Sin asignar';
       const nombre = row.Sucursal;
       if (!nombre) return;
       if (!byZone[zone]) byZone[zone] = {};
@@ -2462,7 +2467,19 @@
   //   pasar primero por "En Proceso", para forzar que quede registrada
   //   la acción del supervisor antes del cierre.
 
-  const GERENTES_LISTA = ['Israel', 'Edith', 'Carlos', 'Chris', 'Román', 'Zona San Luis'];
+  // CAMBIO (28 ago 2026): antes GERENTES_LISTA era un array fijo con los 6
+  // nombres de gerente hardcodeados — si cambiaba un gerente, este archivo
+  // había que editarlo a mano. Ahora se deriva dinámicamente de allData
+  // (columna "Gerente_Actual" de Sucursales, vía Métricas), igual que ya
+  // hace mapaZona con "Zona". Cambiar de gerente en el Sheet ya no requiere
+  // tocar el dashboard — de eso se trataba el refactor completo.
+  function obtenerGerentesListaActual() {
+    const gerentes = new Set();
+    allData.forEach(row => {
+      if (row['Gerente_Actual']) gerentes.add(row['Gerente_Actual']);
+    });
+    return [...gerentes].sort();
+  }
 
   function esQuejaDeRedes(canalOrigen) {
     // El tiempo de resolución solo aplica a canales con contacto directo
@@ -2746,7 +2763,7 @@
           <div class="segu-actions-row">
             <select id="seguGerenteCierre-${quejaId}">
               <option value="">Selecciona el gerente que cierra…</option>
-              ${GERENTES_LISTA.map(g => `<option value="${g}">${g}</option>`).join('')}
+              ${obtenerGerentesListaActual().map(g => `<option value="${g}">${g}</option>`).join('')}
             </select>
           </div>
           <div>
