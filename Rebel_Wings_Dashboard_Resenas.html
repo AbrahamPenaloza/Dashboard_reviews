@@ -1502,8 +1502,8 @@
         datasets: [{
           label: '% Reseñas negativas',
           data: sorted.map(d => d.percent.toFixed(1)),
-          backgroundColor: '#2b2d42',
-          borderColor: '#e63946',
+          backgroundColor: sorted.map(d => colorDeZona(d.name)),
+          borderColor: sorted.map(d => colorDeZona(d.name)),
           borderWidth: 1
         }]
       },
