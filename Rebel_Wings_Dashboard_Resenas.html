@@ -491,6 +491,12 @@
         <option value="avg3">Promedio de últimos 3 periodos</option>
       </select>
     </div>
+    <div class="control-group">
+      <label for="kpiLocationFilter">Sucursal:</label>
+      <select id="kpiLocationFilter">
+        <option value="">Todas las sucursales</option>
+      </select>
+    </div>
   </div>
   
   <div class="kpi-grid">
@@ -1009,6 +1015,7 @@
       
       allData = rows;
       await loadReviewsData();
+      populateKpiLocationFilter();
       updateDashboard();
       updateTopSection();
       updateThemeSection();
@@ -1413,8 +1420,13 @@
   }
   
   function updateDashboard() {
-    const filtered = getFilteredData();
-    const filteredReviews = getFilteredReviews();
+    const kpiLocation = document.getElementById('kpiLocationFilter').value;
+    const filtered = kpiLocation
+      ? getFilteredData().filter(r => r.Sucursal === kpiLocation)
+      : getFilteredData();
+    const filteredReviews = kpiLocation
+      ? getFilteredReviews().filter(r => r['Nombre de sucursal'] === kpiLocation)
+      : getFilteredReviews();
     
     const avgRating = filteredReviews.length > 0 
       ? (filteredReviews.reduce((sum, r) => sum + (r.Calificación || 0), 0) / filteredReviews.length).toFixed(2)
@@ -1728,8 +1740,10 @@
   // para el resumen ejecutivo del módulo de Reseñas. Esto es 100% determinista;
   // la API solo se usa después para redactar estos hallazgos en lenguaje natural.
   function calcularHallazgosResenas() {
+    const sucursalFiltro = document.getElementById('kpiLocationFilter').value;
     const rows = calcularFilasComparativas();
-    const conDatos = rows.filter(r => r.sSel.total > 0);
+    let conDatos = rows.filter(r => r.sSel.total > 0);
+    if (sucursalFiltro) conDatos = conDatos.filter(r => r.name === sucursalFiltro);
     
     const empeorando = conDatos.filter(r => r.trend === 'down')
       .sort((a, b) => (b.sSel.percent - b.sComparacion.percent) - (a.sSel.percent - a.sComparacion.percent))
@@ -1760,6 +1774,7 @@
     return {
       periodo: document.getElementById('period').selectedOptions[0].textContent,
       comparacion: document.getElementById('compareMode').selectedOptions[0].textContent,
+      sucursalFiltro,
       percentGlobalActual,
       percentGlobalComparacion,
       empeorando,
@@ -2068,12 +2083,25 @@
   })();
   
   document.getElementById('compareMode').addEventListener('change', updateComparisonTable);
+  document.getElementById('kpiLocationFilter').addEventListener('change', updateDashboard);
   document.getElementById('themeFilter').addEventListener('change', () => {
     updateThemesChart(getFilteredData('_theme'));
   });
   document.getElementById('themeLocationFilter').addEventListener('change', () => {
     updateThemesChart(getFilteredData('_theme'));
   });
+  
+  // Popula el selector de sucursal del Resumen Ejecutivo (KPIs de arriba)
+  // a partir de allData, para incluir todas las sucursales con datos en
+  // "Métricas" independientemente del periodo elegido en ese momento.
+  function populateKpiLocationFilter() {
+    const locations = [...new Set(allData.map(r => r.Sucursal).filter(Boolean))].sort();
+    const select = document.getElementById('kpiLocationFilter');
+    const current = select.value;
+    select.innerHTML = '<option value="">Todas las sucursales</option>' +
+      locations.map(l => `<option value="${l}">${l}</option>`).join('');
+    select.value = current;
+  }
   
   function populateReviewLocationFilter() {
     const locations = [...new Set(reviewsData.map(r => r['Nombre de sucursal']).filter(Boolean))].sort();
@@ -2322,19 +2350,26 @@
   function redactarResumenResenas(h) {
     if (!h || (h.percentGlobalActual === null)) return null;
     const frases = [];
+    const ambito = h.sucursalFiltro ? h.sucursalFiltro : 'el grupo';
     
     const dirGlobal = h.percentGlobalComparacion !== null
       ? (h.percentGlobalActual < h.percentGlobalComparacion - 1 ? 'una mejora' : h.percentGlobalActual > h.percentGlobalComparacion + 1 ? 'un deterioro' : 'un comportamiento estable')
       : null;
     frases.push(
       dirGlobal
-        ? `En ${h.periodo.toLowerCase()}, el grupo registra ${h.percentGlobalActual}% de reseñas negativas, lo que representa ${dirGlobal} frente al ${h.percentGlobalComparacion}% de ${h.comparacion.toLowerCase()}.`
-        : `En ${h.periodo.toLowerCase()}, el grupo registra ${h.percentGlobalActual}% de reseñas negativas.`
+        ? `En ${h.periodo.toLowerCase()}, ${ambito} registra ${h.percentGlobalActual}% de reseñas negativas, lo que representa ${dirGlobal} frente al ${h.percentGlobalComparacion}% de ${h.comparacion.toLowerCase()}.`
+        : `En ${h.periodo.toLowerCase()}, ${ambito} registra ${h.percentGlobalActual}% de reseñas negativas.`
     );
+    
+    // Con una sucursal filtrada, "empeorando/mejorando/alertaSostenida" tienen
+    // como máximo 1 elemento (esa misma sucursal) — se ajusta el fraseo para
+    // que no suene como si hablara de varias sucursales.
+    const esUnaSola = !!h.sucursalFiltro;
+    const etiquetaSujeto = esUnaSola ? '' : 'Sucursales ';
     
     if (h.alertaSostenida.length > 0) {
       const nombres = h.alertaSostenida.map(a => `${a.sucursal} (${a.percent30d}% en 30 días, ${a.percent90d}% en 90 días)`).join(', ');
-      frases.push(`Atención prioritaria: ${nombres} se mantienen en niveles críticos de forma sostenida, independientemente de si la tendencia reciente mejora o no.`);
+      frases.push(`Atención prioritaria: ${nombres} se mantiene${esUnaSola ? '' : 'n'} en niveles críticos de forma sostenida, independientemente de si la tendencia reciente mejora o no.`);
     }
     
     // Nombres ya mencionados en alertaSostenida, para aclarar (no ocultar) cuando
@@ -2347,7 +2382,7 @@
         const base = `${e.sucursal} (${e.percentAnterior}% → ${e.percentActual}%)`;
         return nombresAlerta.has(e.sucursal) ? `${base}, ya listada arriba en alerta sostenida` : base;
       }).join(', ');
-      frases.push(`Sucursales con tendencia a la baja: ${nombres}.`);
+      frases.push(`${etiquetaSujeto}con tendencia a la baja: ${nombres}.`);
     }
     
     if (h.mejorando.length > 0) {
@@ -2355,7 +2390,7 @@
         const base = `${m.sucursal} (${m.percentAnterior}% → ${m.percentActual}%)`;
         return nombresAlerta.has(m.sucursal) ? `${base}, aunque sigue en alerta sostenida arriba` : base;
       }).join(', ');
-      frases.push(`Sucursales que mejoraron: ${nombres}.`);
+      frases.push(`${esUnaSola ? 'Mejoró' : 'Sucursales que mejoraron'}: ${nombres}.`);
     }
     
     if (h.empeorando.length === 0 && h.mejorando.length === 0 && h.alertaSostenida.length === 0) {
