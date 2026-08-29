@@ -1518,15 +1518,20 @@
     });
   }
   
-  // Paleta fija por zona/gerente: mismo color siempre para la misma zona, sin
+  // Paleta fija por zona: mismo color siempre para la misma zona, sin
   // importar cuántas zonas distintas aparezcan en el periodo filtrado. Si aparece
   // una zona nueva no listada aquí, cae en el color de reserva al final.
+  // CAMBIO (30 ago 2026): antes las llaves eran nombres de gerente ('Israel',
+  // 'Edith'...), que ya no coinciden con row['Zona'] tras el refactor — por
+  // eso todas las zonas caían en COLOR_RESERVA (se veían iguales). Ahora las
+  // llaves son los 7 nombres de zona reales.
   const COLOR_POR_ZONA = {
-    'Israel': '#e63946',
-    'Edith': '#2a9d8f',
-    'Carlos': '#e9c46a',
-    'Chris': '#457b9d',
-    'Román': '#9b5de5',
+    'CDMX-Norte': '#e63946',
+    'CDMX-Centro': '#2a9d8f',
+    'CDMX-Oriente': '#e9c46a',
+    'CDMX-Sur': '#457b9d',
+    'Querétaro-Norte': '#9b5de5',
+    'Querétaro-Sur': '#f77f00',
     'Zona San Luis': '#f4a261',
     'Sin asignar': '#8a8d99'
   };
