@@ -85,6 +85,8 @@
     font-size: 12px;
     color: #666;
   }
+  .kpi-change.tendencia-positiva { color: #2a9d5c; font-weight: 600; }
+  .kpi-change.tendencia-negativa { color: #e63946; font-weight: 600; }
   
   .section {
     background: white;
@@ -503,7 +505,7 @@
     <div class="kpi-card">
       <div class="kpi-label">Rating Promedio</div>
       <div class="kpi-value" id="avgRating">--</div>
-      <div class="kpi-change">De todas las reseñas</div>
+      <div class="kpi-change" id="avgRatingComparativo">De todas las reseñas</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Total Reseñas</div>
@@ -953,6 +955,15 @@
   const QUEJAS_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Quejas')}`;
   let quejasData = []; // filas de la hoja Quejas, cargadas por loadQuejasSheetData()
 
+  // Datos de la pestaña "Sucursales" — usada SOLO para el rating oficial
+  // de Google (columna G, actualizada diariamente por
+  // traerResenasUltimos30Dias vía averageRating de la API) y el total de
+  // reseñas de Google (columna H, Total_Resenas_Google). Sirve de
+  // "termómetro" en el resumen ejecutivo: compara el promedio del período
+  // filtrado contra el oficial acumulado de Google. Agregado 1-sep-2026.
+  const SUCURSALES_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Sucursales')}`;
+  let mapaRatingOficial = {}; // 'Nombre de sucursal' -> { rating, total }
+
   // Misma Web App que la sección de Respuestas, pero con doPost extendido
   // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
   // más abajo — de momento apunta a la misma URL/token; el backend
@@ -1014,7 +1025,7 @@
       });
       
       allData = rows;
-      await loadReviewsData();
+      await Promise.all([loadReviewsData(), loadSucursalesData()]);
       populateKpiLocationFilter();
       updateDashboard();
       updateTopSection();
@@ -1043,6 +1054,39 @@
       });
     } catch (error) {
       console.error('Error cargando reseñas:', error);
+    }
+  }
+
+  // Carga la pestaña "Sucursales" — solo para poblar mapaRatingOficial
+  // (rating oficial de Google + total de reseñas por sucursal, columnas
+  // G y H). Mismo patrón de parseo gviz que loadReviewsData. Un fallo
+  // aquí no debe tumbar el dashboard: si no carga, el KPI de rating
+  // simplemente no muestra la comparación (se degrada con gracia).
+  async function loadSucursalesData() {
+    try {
+      const response = await fetch(SUCURSALES_SHEET_URL);
+      const text = await response.text();
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      const cols = json.table.cols.map(c => c.label);
+      const idxNombre = cols.indexOf('Nombre de sucursal');
+      const idxRating = cols.indexOf('Rating promedio');
+      const idxTotal = cols.indexOf('Total_Resenas_Google');
+
+      if (idxNombre === -1 || idxRating === -1 || idxTotal === -1) {
+        console.warn('loadSucursalesData: no se encontraron las columnas esperadas en Sucursales. El termómetro de rating oficial no se mostrará.');
+        return;
+      }
+
+      const mapa = {};
+      json.table.rows.forEach(r => {
+        const nombre = r.c[idxNombre] ? r.c[idxNombre].v : null;
+        const rating = r.c[idxRating] ? r.c[idxRating].v : null;
+        const total = r.c[idxTotal] ? r.c[idxTotal].v : null;
+        if (nombre) mapa[nombre] = { rating, total };
+      });
+      mapaRatingOficial = mapa;
+    } catch (error) {
+      console.error('Error cargando Sucursales (rating oficial):', error);
     }
   }
 
@@ -1424,6 +1468,70 @@
     });
   }
   
+  // Rating oficial "global" ponderado por volumen de reseñas — se usa
+  // cuando el filtro está en "Todas las sucursales". Ponderado (no
+  // promedio simple) para que sucursales con miles de reseñas pesen más
+  // que una con un puñado, dando una foto más fiel de la percepción
+  // real de la marca. Se calcula una sola vez tras cargar Sucursales
+  // (mapaRatingOficial no cambia hasta recargar la página) y se cachea.
+  let _ratingGlobalPonderadoCache = null;
+  function calcularRatingGlobalPonderado() {
+    if (_ratingGlobalPonderadoCache !== null) return _ratingGlobalPonderadoCache;
+
+    let sumaPonderada = 0;
+    let sumaTotales = 0;
+    Object.values(mapaRatingOficial).forEach(d => {
+      if (typeof d.rating === 'number' && typeof d.total === 'number' && d.total > 0) {
+        sumaPonderada += d.rating * d.total;
+        sumaTotales += d.total;
+      }
+    });
+
+    _ratingGlobalPonderadoCache = sumaTotales > 0 ? (sumaPonderada / sumaTotales) : null;
+    return _ratingGlobalPonderadoCache;
+  }
+
+  // "Termómetro" de rating: compara el promedio del período filtrado
+  // contra el rating oficial acumulado de Google. Con una sucursal
+  // seleccionada, usa el oficial de esa sucursal (mapaRatingOficial).
+  // Con "Todas las sucursales", usa el ponderado global de las 52 (ver
+  // calcularRatingGlobalPonderado) — no un promedio simple, para que el
+  // número refleje el volumen real de reseñas de cada sucursal.
+  function actualizarComparativoRatingOficial(kpiLocation, avgRatingPeriodo) {
+    const el = document.getElementById('avgRatingComparativo');
+    el.classList.remove('tendencia-positiva', 'tendencia-negativa');
+
+    if (avgRatingPeriodo === '--') {
+      el.textContent = 'De todas las reseñas';
+      return;
+    }
+
+    let ratingOficial;
+    let etiqueta;
+
+    if (!kpiLocation) {
+      ratingOficial = calcularRatingGlobalPonderado();
+      etiqueta = 'oficial de Google (ponderado)';
+    } else {
+      const datosOficiales = mapaRatingOficial[kpiLocation];
+      ratingOficial = datosOficiales && typeof datosOficiales.rating === 'number' ? datosOficiales.rating : null;
+      etiqueta = 'oficial de Google';
+    }
+
+    if (ratingOficial === null || typeof ratingOficial !== 'number') {
+      el.textContent = 'De todas las reseñas';
+      return;
+    }
+
+    const ratingPeriodo = parseFloat(avgRatingPeriodo);
+    const diferencia = ratingPeriodo - ratingOficial;
+    const flecha = diferencia >= 0 ? '↑' : '↓';
+    const claseTendencia = diferencia >= 0 ? 'tendencia-positiva' : 'tendencia-negativa';
+
+    el.classList.add(claseTendencia);
+    el.textContent = `${flecha} vs. ${ratingOficial.toFixed(2)} ${etiqueta}`;
+  }
+
   function updateDashboard() {
     const kpiLocation = document.getElementById('kpiLocationFilter').value;
     const filtered = kpiLocation
@@ -1449,6 +1557,7 @@
     document.getElementById('totalReviews').textContent = totalReviews;
     document.getElementById('negativePercent').textContent = negativePercent + '%';
     document.getElementById('locationCount').textContent = locations;
+    actualizarComparativoRatingOficial(kpiLocation, avgRating);
     
     updateComparisonTable();
     actualizarResumenResenas();
