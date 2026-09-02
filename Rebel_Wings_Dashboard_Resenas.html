@@ -953,7 +953,7 @@
 
     <div class="rr-chart-card">
       <div class="rr-ctitle">Tendencia de rating — Piloto vs. Control</div>
-      <div class="rr-csub">Punto sólido = dato real de hoy. Línea punteada = proyección hacia el lanzamiento y después.</div>
+      <div class="rr-csub">Rating acumulado día a día desde el snapshot base (2-sep). Crece solo conforme entran nuevas reseñas.</div>
       <div class="rr-legend-row">
         <span class="rr-li"><span class="rr-dot" style="background:#C8102E;"></span>Piloto</span>
         <span class="rr-li"><span class="rr-dot" style="background:#8A8378;"></span>Control</span>
@@ -981,7 +981,7 @@
     </div>
 
     <div class="rr-note">
-      💡 La sección R+R mide el impacto de la campaña desde su snapshot base (2-sep-2026). El segmento punteado y la columna "Rating post-lanzamiento" se irán completando con datos reales a partir del 14 de septiembre.
+      💡 La sección R+R mide el impacto de la campaña desde su snapshot base (2-sep-2026). La gráfica muestra el acumulado real día a día — cada vez que se recarga el dashboard, se suma un punto nuevo si hay reseñas más recientes. La columna "Rating post-lanzamiento" se activará a partir del 14 de septiembre.
     </div>
   </div>
 
@@ -1278,7 +1278,7 @@ function calcularAgregadosRR() {
 // ============================================================
 let rrTrendChartInstance = null;
 
-function renderRRSection(agregados) {
+function renderRRSection(agregados, serieDiaria) {
   const launch = new Date(2026, 8, 14);
   const today = new Date();
   const diffDays = Math.ceil((launch - today) / (1000 * 60 * 60 * 24));
@@ -1298,11 +1298,13 @@ function renderRRSection(agregados) {
   document.getElementById('rrControlFoot').textContent =
     agregados.control.pre.n > 0 ? `${agregados.control.pre.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
 
-  const labels = ['Hoy', '14-sep', '+2 sem', '+4 sem', '+6 sem'];
-  const pilotoSolido = [pilotoRating, pilotoRating, null, null, null];
-  const pilotoPunteado = [null, pilotoRating, pilotoRating, pilotoRating, pilotoRating];
-  const controlSolido = [controlRating, controlRating, null, null, null];
-  const controlPunteado = [null, controlRating, controlRating, controlRating, controlRating];
+  // Serie real día a día (snapshot -> hoy). Todavía no existen días
+  // futuros con datos, así que no se dibuja ningún tramo punteado por
+  // ahora — cuando pasen los días y loadRRData() se vuelva a ejecutar,
+  // esta misma serie crecerá sola con puntos reales adicionales.
+  const labels = serieDiaria.labels;
+  const pilotoSerie = serieDiaria.pilotoSerie;
+  const controlSerie = serieDiaria.controlSerie;
 
   if (rrTrendChartInstance) {
     rrTrendChartInstance.destroy();
@@ -1314,10 +1316,8 @@ function renderRRSection(agregados) {
     data: {
       labels,
       datasets: [
-        { label: 'Piloto (real)', data: pilotoSolido, borderColor: '#C8102E', backgroundColor: '#C8102E', borderWidth: 2.5, pointRadius: (c) => c.dataIndex === 0 ? 6 : 0, spanGaps: false },
-        { label: 'Piloto (proyección)', data: pilotoPunteado, borderColor: '#C8102E', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, spanGaps: true },
-        { label: 'Control (real)', data: controlSolido, borderColor: '#8A8378', backgroundColor: '#8A8378', borderWidth: 2, pointRadius: (c) => c.dataIndex === 0 ? 6 : 0, spanGaps: false },
-        { label: 'Control (proyección)', data: controlPunteado, borderColor: '#8A8378', borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, spanGaps: true },
+        { label: 'Piloto', data: pilotoSerie, borderColor: '#C8102E', backgroundColor: '#C8102E', borderWidth: 2.5, pointRadius: (c) => c.dataIndex === labels.length - 1 ? 5 : 0, spanGaps: true, tension: 0.25 },
+        { label: 'Control', data: controlSerie, borderColor: '#8A8378', backgroundColor: '#8A8378', borderWidth: 2, pointRadius: (c) => c.dataIndex === labels.length - 1 ? 5 : 0, spanGaps: true, tension: 0.25 },
       ],
     },
     options: {
@@ -1326,7 +1326,7 @@ function renderRRSection(agregados) {
       plugins: { legend: { display: false } },
       scales: {
         y: { min: 3.0, max: 5.0, ticks: { callback: v => v.toFixed(1) }, grid: { color: '#EAE0D5' } },
-        x: { grid: { display: false } },
+        x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
       },
     },
   });
@@ -1371,13 +1371,88 @@ function renderRRDetalle(detalle) {
   }).join('');
 }
 
+// Construye series diarias reales de rating acumulado por grupo, desde
+// el snapshot (2-sep) hasta hoy. Cada punto del día D representa el
+// rating ponderado de TODO lo acumulado hasta ese día (snapshot base +
+// reseñas nuevas con fecha <= D) — no el rating de ese día aislado, para
+// que la línea sea estable y no salte por ruido de días con 1-2 reseñas.
+// No inventa fechas futuras: la serie termina en "hoy" y crecerá sola
+// conforme pasen los días y loadRRData() se vuelva a ejecutar.
+function calcularSerieDiariaRR() {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const inicio = new Date(RR_SNAPSHOT_FECHA);
+  inicio.setHours(0, 0, 0, 0);
+
+  // Base ponderada de cada grupo, tomada del snapshot (idéntico a como
+  // se siembra "pre" en calcularAgregadosRR).
+  const base = { piloto: { suma: 0, n: 0 }, control: { suma: 0, n: 0 } };
+  Object.keys(rrSnapshot).forEach(nombre => {
+    const info = rrSnapshot[nombre];
+    if (!info || (info.grupo !== 'Piloto' && info.grupo !== 'Control')) return;
+    if (!Number.isFinite(info.ratingBase) || !Number.isFinite(info.totalBase)) return;
+    const clave = info.grupo === 'Piloto' ? 'piloto' : 'control';
+    base[clave].suma += info.ratingBase * info.totalBase;
+    base[clave].n += info.totalBase;
+  });
+
+  // Reseñas nuevas agrupadas por día (clave yyyy-mm-dd) y por grupo.
+  const porDia = {}; // 'yyyy-mm-dd' -> { piloto: {suma,n}, control: {suma,n} }
+  rrReviews.forEach(row => {
+    const nombre = row['Nombre de sucursal'];
+    if (!nombre) return;
+    const grupo = (rrSnapshot[nombre] && rrSnapshot[nombre].grupo) || rrGrupoPorSucursal[nombre];
+    if (grupo !== 'Piloto' && grupo !== 'Control') return;
+
+    const fecha = parseFecha(row['Fecha']);
+    if (!fecha) return;
+    const calificacion = Number(row['Calificación']);
+    if (!Number.isFinite(calificacion)) return;
+
+    const clave = fecha.getFullYear() + '-' + String(fecha.getMonth() + 1).padStart(2, '0') + '-' + String(fecha.getDate()).padStart(2, '0');
+    if (!porDia[clave]) porDia[clave] = { piloto: { suma: 0, n: 0 }, control: { suma: 0, n: 0 } };
+    const grupoClave = grupo === 'Piloto' ? 'piloto' : 'control';
+    porDia[clave][grupoClave].suma += calificacion;
+    porDia[clave][grupoClave].n += 1;
+  });
+
+  // Recorre día a día desde el snapshot hasta hoy, acumulando sobre la
+  // base. Cada punto es el promedio ponderado de todo lo acumulado hasta
+  // ese día — nunca null salvo que el grupo entero no tenga datos.
+  const labels = [];
+  const pilotoSerie = [];
+  const controlSerie = [];
+  const acumulado = { piloto: { suma: base.piloto.suma, n: base.piloto.n }, control: { suma: base.control.suma, n: base.control.n } };
+
+  const cursor = new Date(inicio);
+  while (cursor <= hoy) {
+    const clave = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0') + '-' + String(cursor.getDate()).padStart(2, '0');
+    const deHoy = porDia[clave];
+    if (deHoy) {
+      acumulado.piloto.suma += deHoy.piloto.suma;
+      acumulado.piloto.n += deHoy.piloto.n;
+      acumulado.control.suma += deHoy.control.suma;
+      acumulado.control.n += deHoy.control.n;
+    }
+
+    labels.push(cursor.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }));
+    pilotoSerie.push(acumulado.piloto.n > 0 ? acumulado.piloto.suma / acumulado.piloto.n : null);
+    controlSerie.push(acumulado.control.n > 0 ? acumulado.control.suma / acumulado.control.n : null);
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return { labels, pilotoSerie, controlSerie };
+}
+
 // Punto de entrada de la sección — llamar junto al resto de loaders
 // en el Promise.all de arranque del dashboard.
 async function loadRRData() {
   await Promise.all([loadRRSnapshot(), loadRRReviews(), loadRRGrupos()]);
   const agregados = calcularAgregadosRR();
+  const serieDiaria = calcularSerieDiariaRR();
   console.log('R+R agregados:', agregados);
-  renderRRSection(agregados);
+  renderRRSection(agregados, serieDiaria);
 }
   // Misma Web App que la sección de Respuestas, pero con doPost extendido
   // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
