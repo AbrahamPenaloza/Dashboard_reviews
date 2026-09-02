@@ -1090,27 +1090,34 @@ async function loadRRGrupos() {
   }
 }
 
-// Agrega las reseñas cargadas en dos ventanas por sucursal:
-// - pre: [RR_SNAPSHOT_FECHA, RR_LANZAMIENTO)  → "comportamiento normal"
-// - post: [RR_LANZAMIENTO, hoy]               → periodo de campaña
-// Devuelve { piloto: {...}, control: {...} } con rating promedio
-// ponderado y conteo, para cada ventana.
-// REEMPLAZA la función calcularAgregadosRR() completa por esta versión.
-// Diferencia clave: cada bucket arranca con el snapshot (rating base +
-// su volumen histórico) como punto de partida ponderado, no en blanco.
-// Las reseñas nuevas que van entrando se suman encima con su propio
-// peso, así el promedio no se distorsiona por pocas reseñas nuevas
-// sobre una base histórica grande.
+// REEMPLAZA la función calcularAgregadosRR() completa (otra vez) por
+// esta versión. Además de los totales piloto/control, ahora también
+// devuelve el detalle por sucursal individual — necesario para ver
+// cuáles necesitan atención operativa (ej. EL REFUGIO, SATÉLITE, que
+// parten con rating base más bajo que el resto del piloto).
 function calcularAgregadosRR() {
   const acumulador = {
     piloto: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
     control: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
   };
 
+  // Detalle por sucursal: 'NOMBRE' -> { grupo, pre: {suma,n}, post: {suma,n} }
+  const porSucursal = {};
+
+  function asegurarSucursal(nombre, grupo) {
+    if (!porSucursal[nombre]) {
+      porSucursal[nombre] = {
+        grupo,
+        pre: { suma: 0, n: 0 },
+        post: { suma: 0, n: 0 },
+      };
+    }
+    return porSucursal[nombre];
+  }
+
   // Punto de partida: cada sucursal del snapshot aporta su rating base
   // ponderado por su volumen histórico, sembrando el bucket "pre" —
-  // porque el snapshot representa el estado justo ANTES del arranque
-  // del monitoreo (hoy, 2-sep), que cae dentro de la ventana pre-lanzamiento.
+  // tanto en el acumulador de grupo como en el detalle por sucursal.
   Object.keys(rrSnapshot).forEach(nombre => {
     const info = rrSnapshot[nombre];
     if (!info || (info.grupo !== 'Piloto' && info.grupo !== 'Control')) return;
@@ -1119,10 +1126,14 @@ function calcularAgregadosRR() {
     const clave = info.grupo === 'Piloto' ? 'piloto' : 'control';
     acumulador[clave].pre.suma += info.ratingBase * info.totalBase;
     acumulador[clave].pre.n += info.totalBase;
+
+    const suc = asegurarSucursal(nombre, info.grupo);
+    suc.pre.suma += info.ratingBase * info.totalBase;
+    suc.pre.n += info.totalBase;
   });
 
   // Reseñas nuevas capturadas desde el snapshot: se suman encima del
-  // bucket que corresponda según su fecha real.
+  // bucket que corresponda, tanto a nivel grupo como por sucursal.
   rrReviews.forEach(row => {
     const nombre = row['Nombre de sucursal'];
     if (!nombre) return;
@@ -1141,11 +1152,31 @@ function calcularAgregadosRR() {
 
     acumulador[clave][ventana].suma += calificacion;
     acumulador[clave][ventana].n += 1;
+
+    const suc = asegurarSucursal(nombre, grupo);
+    suc[ventana].suma += calificacion;
+    suc[ventana].n += 1;
   });
 
   function promedio(bucket) {
     return bucket.n > 0 ? bucket.suma / bucket.n : null;
   }
+
+  // Detalle por sucursal, solo piloto, ordenado de rating más bajo a
+  // más alto — así las que necesitan atención aparecen primero.
+  const detallePiloto = Object.keys(porSucursal)
+    .filter(nombre => porSucursal[nombre].grupo === 'Piloto')
+    .map(nombre => {
+      const s = porSucursal[nombre];
+      return {
+        nombre,
+        ratingPre: promedio(s.pre),
+        nPre: s.pre.n,
+        ratingPost: promedio(s.post),
+        nPost: s.post.n,
+      };
+    })
+    .sort((a, b) => (a.ratingPre ?? 999) - (b.ratingPre ?? 999));
 
   return {
     piloto: {
@@ -1156,6 +1187,7 @@ function calcularAgregadosRR() {
       pre: { rating: promedio(acumulador.control.pre), n: acumulador.control.pre.n },
       post: { rating: promedio(acumulador.control.post), n: acumulador.control.post.n },
     },
+    detallePiloto,
   };
 }
 
