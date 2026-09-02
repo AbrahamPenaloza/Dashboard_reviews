@@ -963,7 +963,191 @@
   // filtrado contra el oficial acumulado de Google. Agregado 1-sep-2026.
   const SUCURSALES_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Sucursales')}`;
   let mapaRatingOficial = {}; // 'Nombre de sucursal' -> { rating, total }
+// ============================================================
+// SECCIÓN R+R — Reseñas y Recompensas
+// Mismo patrón gviz que loadReviewsData/loadSucursalesData.
+// Lee RR_Snapshot (línea base "antes", congelada 2026-09-02),
+// Sucursales (para Grupo_RR/Zona) y Reseñas (filtrado desde
+// 2026-09-02 en adelante — evita traer el histórico completo).
+// ============================================================
 
+const RR_SNAPSHOT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('RR_Snapshot')}`;
+const RR_LANZAMIENTO = new Date(2026, 8, 14); // 14-sep-2026 (mes 0-indexado)
+const RR_SNAPSHOT_FECHA = new Date(2026, 8, 2); // 2-sep-2026, fecha del snapshot congelado
+
+let rrSnapshot = {}; // 'Nombre de sucursal' -> { grupo, ratingBase, totalBase }
+let rrReviews = [];  // filas de Reseñas desde RR_SNAPSHOT_FECHA en adelante
+let rrGrupoPorSucursal = {}; // 'Nombre de sucursal' -> 'Piloto' | 'Control' (de Sucursales, respaldo si falta en snapshot)
+
+// Carga RR_Snapshot — pestaña pequeña (52 filas), no necesita filtro.
+// Un fallo aquí no debe tumbar el resto del dashboard: si no carga,
+// la sección R+R se degrada mostrando un aviso, no rompe todo.
+async function loadRRSnapshot() {
+  try {
+    const response = await fetch(RR_SNAPSHOT_URL);
+    const text = await response.text();
+    if (!text.includes('google.visualization.Query.setResponse')) {
+      throw new Error('RR_Snapshot no devolvió datos válidos. Verifica que la pestaña exista y sea pública.');
+    }
+    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    const cols = json.table.cols.map(c => c.label);
+
+    const idxNombre = cols.indexOf('Sucursal');
+    const idxGrupo = cols.indexOf('Grupo_RR');
+    const idxRating = cols.indexOf('Rating_Base');
+    const idxTotal = cols.indexOf('Total_Resenas_Base');
+
+    if ([idxNombre, idxGrupo, idxRating, idxTotal].includes(-1)) {
+      console.warn('loadRRSnapshot: faltan columnas esperadas en RR_Snapshot.', cols);
+      return;
+    }
+
+    const mapa = {};
+    json.table.rows.forEach(r => {
+      const nombre = r.c[idxNombre] ? r.c[idxNombre].v : null;
+      if (!nombre) return;
+      mapa[nombre] = {
+        grupo: r.c[idxGrupo] ? r.c[idxGrupo].v : null,
+        ratingBase: r.c[idxRating] ? r.c[idxRating].v : null,
+        totalBase: r.c[idxTotal] ? r.c[idxTotal].v : null,
+      };
+    });
+    rrSnapshot = mapa;
+  } catch (error) {
+    console.error('Error cargando RR_Snapshot:', error);
+  }
+}
+
+// Carga Reseñas filtrado por fecha >= snapshot, vía cláusula "where" de
+// la query gviz (tq=), en vez de traer el histórico completo 2015-2026.
+// Confirmado: la columna Fecha en Reseñas es un valor numérico real
+// (ESNUMERO() = TRUE), así que el filtro de fecha en la query es
+// confiable. La columna en la query gviz se referencia por letra (A,B,C…)
+// según el orden real de columnas en Reseñas — aquí Fecha es la col G.
+async function loadRRReviews() {
+  try {
+    const y = RR_SNAPSHOT_FECHA.getFullYear();
+    const m = RR_SNAPSHOT_FECHA.getMonth();
+    const d = RR_SNAPSHOT_FECHA.getDate();
+    // gviz espera fechas en su propio literal date"yyyy-mm-dd" dentro del where
+    const fechaLiteral = `date"${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}"`;
+    const query = encodeURIComponent(`select * where G >= ${fechaLiteral}`);
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('Reseñas')}&tq=${query}`;
+
+    const response = await fetch(url);
+    const text = await response.text();
+    if (!text.includes('google.visualization.Query.setResponse')) {
+      throw new Error('Reseñas (filtro R+R) no devolvió datos válidos.');
+    }
+    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    const cols = json.table.cols.map(c => c.label);
+
+    rrReviews = json.table.rows.map(r => {
+      const row = {};
+      r.c.forEach((cell, i) => {
+        row[cols[i]] = cell ? cell.v : null;
+      });
+      return row;
+    });
+  } catch (error) {
+    console.error('Error cargando Reseñas para R+R:', error);
+    // Fallback: si el filtro "where" falla por cualquier razón (columna
+    // movida, formato inesperado), no dejamos la sección muerta —
+    // se puede reintentar sin filtro y filtrar en el cliente como respaldo,
+    // pero eso es más pesado, así que solo se avisa en consola por ahora.
+    rrReviews = [];
+  }
+}
+
+// Carga Sucursales solo para Grupo_RR y Zona — respaldo del snapshot
+// por si una sucursal se agregó al piloto después de que el snapshot
+// se congeló (oleada futura). Si loadSucursalesData() de la sección
+// de Reseñas ya corrió, esto solo necesita el mapeo de grupo/zona;
+// se reutiliza SUCURSALES_SHEET_URL ya definida en esa sección.
+async function loadRRGrupos() {
+  try {
+    const response = await fetch(SUCURSALES_SHEET_URL);
+    const text = await response.text();
+    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    const cols = json.table.cols.map(c => c.label);
+    const idxNombre = cols.indexOf('Nombre de sucursal');
+    const idxGrupo = cols.indexOf('Grupo_RR');
+
+    if (idxNombre === -1 || idxGrupo === -1) {
+      console.warn('loadRRGrupos: no se encontró Grupo_RR en Sucursales.');
+      return;
+    }
+
+    const mapa = {};
+    json.table.rows.forEach(r => {
+      const nombre = r.c[idxNombre] ? r.c[idxNombre].v : null;
+      const grupo = r.c[idxGrupo] ? r.c[idxGrupo].v : null;
+      if (nombre) mapa[nombre] = grupo;
+    });
+    rrGrupoPorSucursal = mapa;
+  } catch (error) {
+    console.error('Error cargando grupos R+R desde Sucursales:', error);
+  }
+}
+
+// Agrega las reseñas cargadas en dos ventanas por sucursal:
+// - pre: [RR_SNAPSHOT_FECHA, RR_LANZAMIENTO)  → "comportamiento normal"
+// - post: [RR_LANZAMIENTO, hoy]               → periodo de campaña
+// Devuelve { piloto: {...}, control: {...} } con rating promedio
+// ponderado y conteo, para cada ventana.
+function calcularAgregadosRR() {
+  const acumulador = {
+    piloto: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
+    control: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
+  };
+
+  rrReviews.forEach(row => {
+    const nombre = row['Nombre de sucursal'];
+    if (!nombre) return;
+
+    const grupo = (rrSnapshot[nombre] && rrSnapshot[nombre].grupo) || rrGrupoPorSucursal[nombre];
+    if (grupo !== 'Piloto' && grupo !== 'Control') return; // sucursal sin clasificar, se ignora
+
+    const fecha = parseFecha(row['Fecha']); // reutiliza parseFecha() ya definida en el dashboard
+    if (!fecha) return;
+
+    const calificacion = Number(row['Calificación']);
+    if (!Number.isFinite(calificacion)) return;
+
+    const ventana = fecha < RR_LANZAMIENTO ? 'pre' : 'post';
+    const clave = grupo === 'Piloto' ? 'piloto' : 'control';
+
+    acumulador[clave][ventana].suma += calificacion;
+    acumulador[clave][ventana].n += 1;
+  });
+
+  function promedio(bucket) {
+    return bucket.n > 0 ? bucket.suma / bucket.n : null;
+  }
+
+  return {
+    piloto: {
+      pre: { rating: promedio(acumulador.piloto.pre), n: acumulador.piloto.pre.n },
+      post: { rating: promedio(acumulador.piloto.post), n: acumulador.piloto.post.n },
+    },
+    control: {
+      pre: { rating: promedio(acumulador.control.pre), n: acumulador.control.pre.n },
+      post: { rating: promedio(acumulador.control.post), n: acumulador.control.post.n },
+    },
+  };
+}
+
+// Punto de entrada de la sección — llamar junto al resto de loaders
+// en el Promise.all de arranque del dashboard.
+async function loadRRData() {
+  await Promise.all([loadRRSnapshot(), loadRRReviews(), loadRRGrupos()]);
+  const agregados = calcularAgregadosRR();
+  console.log('R+R agregados:', agregados);
+  // TODO: aquí se conectan los KPI cards y las gráficas Chart.js
+  // (ver mockup RR_Tab_Dashboard.html) usando `agregados` y
+  // `rrSnapshot` (para el rating base "histórico" pre-2-sep) como
+  // las tres columnas de comparación: Base histórica → Pre-lanzamiento → Post-lanzamiento.
+}
   // Misma Web App que la sección de Respuestas, pero con doPost extendido
   // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
   // más abajo — de momento apunta a la misma URL/token; el backend
@@ -3719,7 +3903,7 @@
   // función es quien lo construye (dentro de populateQuejasMesFilter).
   // updateSeguimientoSection() también depende de quejasData, cargada
   // por loadQuejasSheetData() en paralelo con loadData().
-  Promise.all([loadData(), loadQuejasSheetData()])
+  Promise.all([loadData(), loadQuejasSheetData(), loadRRData()])
     .then(() => loadQuejasData())
     .then(() => { updateRespSection(); updateSeguimientoSection(); });
 </script>
