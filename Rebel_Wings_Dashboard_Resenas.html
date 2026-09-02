@@ -466,6 +466,7 @@
   <div class="main-tabs">
     <button class="main-tab-btn active" onclick="cambiarTabPrincipal('resenas', this)">📍 Reseñas</button>
     <button class="main-tab-btn" onclick="cambiarTabPrincipal('quejas-redes', this)">📱 Quejas Redes Sociales</button>
+    <button class="main-tab-btn" onclick="cambiarTabPrincipal('rr', this)">🎯 R+R</button>
   </div>
 
   <div id="tab-resenas" class="main-tab-panel active">
@@ -904,6 +905,87 @@
     </div>
   </div>
   </div> <!-- /tab-quejas-redes -->
+
+  <div id="tab-rr" class="main-tab-panel">
+
+  <style>
+    .rr-wrap{max-width:1180px;margin:0 auto;padding:8px 0 20px;}
+    .rr-launch-strip{display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,#C8102E 0%,#8B0000 100%);color:#fff;border-radius:14px;padding:16px 22px;margin-bottom:24px;flex-wrap:wrap;}
+    .rr-launch-strip .rr-badge{background:rgba(255,255,255,0.18);border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;}
+    .rr-launch-strip .rr-date{font-size:17px;font-weight:700;}
+    .rr-launch-strip .rr-days{margin-left:auto;font-size:13px;opacity:0.92;}
+    .rr-kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:24px;}
+    .rr-kpi-card{background:white;border:1px solid #EAE0D5;border-radius:14px;padding:16px 18px;}
+    .rr-kpi-card.rr-piloto{border-left:5px solid #C8102E;}
+    .rr-kpi-card.rr-control{border-left:5px solid #8A8378;}
+    .rr-kpi-card .rr-label{font-size:12px;color:#6B5D52;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
+    .rr-kpi-card .rr-value{font-size:28px;font-weight:700;line-height:1;}
+    .rr-kpi-card .rr-foot{font-size:12px;color:#6B5D52;margin-top:6px;}
+    .rr-chart-card{background:white;border:1px solid #EAE0D5;border-radius:14px;padding:20px 22px;margin-bottom:16px;}
+    .rr-chart-card .rr-ctitle{font-size:14px;font-weight:700;margin-bottom:2px;}
+    .rr-chart-card .rr-csub{font-size:12px;color:#6B5D52;margin-bottom:14px;}
+    .rr-legend-row{display:flex;gap:18px;font-size:12px;color:#6B5D52;margin-bottom:10px;flex-wrap:wrap;}
+    .rr-legend-row .rr-li{display:flex;align-items:center;gap:6px;}
+    .rr-dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
+    .rr-note{font-size:12px;color:#6B5D52;background:#FBF3E9;border:1px solid #F0E0C8;border-radius:10px;padding:10px 14px;margin-top:6px;line-height:1.5;}
+    @media (max-width:820px){.rr-kpi-grid{grid-template-columns:1fr;}}
+  </style>
+
+  <div class="rr-wrap" id="rrSection">
+    <div class="rr-launch-strip">
+      <span class="rr-badge">LANZAMIENTO</span>
+      <span class="rr-date">👉 14 de septiembre de 2026</span>
+      <span class="rr-days" id="rrDaysCounter">Cargando conteo…</span>
+    </div>
+
+    <div class="rr-kpi-grid">
+      <div class="rr-kpi-card rr-piloto">
+        <div class="rr-label">Piloto — 14 sucursales (rating actual)</div>
+        <div class="rr-value" id="rrPilotoRating">--</div>
+        <div class="rr-foot" id="rrPilotoFoot">Cargando…</div>
+      </div>
+      <div class="rr-kpi-card rr-control">
+        <div class="rr-label">Control — 38 sucursales (rating actual)</div>
+        <div class="rr-value" id="rrControlRating">--</div>
+        <div class="rr-foot" id="rrControlFoot">Cargando…</div>
+      </div>
+    </div>
+
+    <div class="rr-chart-card">
+      <div class="rr-ctitle">Tendencia de rating — Piloto vs. Control</div>
+      <div class="rr-csub">Punto sólido = dato real de hoy. Línea punteada = proyección hacia el lanzamiento y después.</div>
+      <div class="rr-legend-row">
+        <span class="rr-li"><span class="rr-dot" style="background:#C8102E;"></span>Piloto</span>
+        <span class="rr-li"><span class="rr-dot" style="background:#8A8378;"></span>Control</span>
+      </div>
+      <div style="position:relative;height:280px;">
+        <canvas id="rrTrendChart" role="img" aria-label="Gráfica de línea mostrando el rating actual de sucursales piloto y control al día de hoy, con proyección punteada hacia la fecha de lanzamiento del 14 de septiembre y semanas posteriores">Rating actual: piloto 3.84, control 4.01. Proyección desde el lanzamiento aún sin datos.</canvas>
+      </div>
+    </div>
+
+    <div class="rr-chart-card" style="padding:16px 18px;">
+      <div class="rr-ctitle">Detalle por sucursal piloto</div>
+      <div class="rr-csub">Ordenado de menor a mayor rating — las primeras filas son las que necesitan más atención operativa.</div>
+      <table class="rr-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Sucursal</th>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating actual</th>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Reseñas</th>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating post-lanzamiento</th>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Atención</th>
+          </tr>
+        </thead>
+        <tbody id="rrDetalleBody"></tbody>
+      </table>
+    </div>
+
+    <div class="rr-note">
+      💡 La sección R+R mide el impacto de la campaña desde su snapshot base (2-sep-2026). El segmento punteado y la columna "Rating post-lanzamiento" se irán completando con datos reales a partir del 14 de septiembre.
+    </div>
+  </div>
+
+  </div> <!-- /tab-rr -->
 </div>
 
 <script>
@@ -924,6 +1006,9 @@
     // Al mostrar el panel, forzamos un resize para que se vean bien.
     if (tabId === 'quejas-redes' && window._quejasRedesCharts) {
       window._quejasRedesCharts.forEach(c => c && c.resize());
+    }
+    if (tabId === 'rr' && typeof rrTrendChartInstance !== 'undefined' && rrTrendChartInstance) {
+      rrTrendChartInstance.resize();
     }
   }
 
@@ -1090,11 +1175,6 @@ async function loadRRGrupos() {
   }
 }
 
-// REEMPLAZA la función calcularAgregadosRR() completa (otra vez) por
-// esta versión. Además de los totales piloto/control, ahora también
-// devuelve el detalle por sucursal individual — necesario para ver
-// cuáles necesitan atención operativa (ej. EL REFUGIO, SATÉLITE, que
-// parten con rating base más bajo que el resto del piloto).
 function calcularAgregadosRR() {
   const acumulador = {
     piloto: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
@@ -1191,16 +1271,113 @@ function calcularAgregadosRR() {
   };
 }
 
+// ============================================================
+// Renderizado visual de la sección R+R — gráfica de tendencia y
+// tabla de detalle por sucursal. Se llama al final de loadRRData(),
+// una vez que `agregados` (incluyendo detallePiloto) está listo.
+// ============================================================
+let rrTrendChartInstance = null;
+
+function renderRRSection(agregados) {
+  const launch = new Date(2026, 8, 14);
+  const today = new Date();
+  const diffDays = Math.ceil((launch - today) / (1000 * 60 * 60 * 24));
+  document.getElementById('rrDaysCounter').textContent =
+    diffDays > 0 ? `Faltan ${diffDays} días` : 'Campaña en curso';
+
+  const pilotoRating = agregados.piloto.pre.rating;
+  const controlRating = agregados.control.pre.rating;
+
+  document.getElementById('rrPilotoRating').textContent =
+    pilotoRating != null ? pilotoRating.toFixed(2) : '--';
+  document.getElementById('rrPilotoFoot').textContent =
+    agregados.piloto.pre.n > 0 ? `${agregados.piloto.pre.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
+
+  document.getElementById('rrControlRating').textContent =
+    controlRating != null ? controlRating.toFixed(2) : '--';
+  document.getElementById('rrControlFoot').textContent =
+    agregados.control.pre.n > 0 ? `${agregados.control.pre.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
+
+  const labels = ['Hoy', '14-sep', '+2 sem', '+4 sem', '+6 sem'];
+  const pilotoSolido = [pilotoRating, pilotoRating, null, null, null];
+  const pilotoPunteado = [null, pilotoRating, pilotoRating, pilotoRating, pilotoRating];
+  const controlSolido = [controlRating, controlRating, null, null, null];
+  const controlPunteado = [null, controlRating, controlRating, controlRating, controlRating];
+
+  if (rrTrendChartInstance) {
+    rrTrendChartInstance.destroy();
+  }
+
+  const ctx = document.getElementById('rrTrendChart');
+  rrTrendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Piloto (real)', data: pilotoSolido, borderColor: '#C8102E', backgroundColor: '#C8102E', borderWidth: 2.5, pointRadius: (c) => c.dataIndex === 0 ? 6 : 0, spanGaps: false },
+        { label: 'Piloto (proyección)', data: pilotoPunteado, borderColor: '#C8102E', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, spanGaps: true },
+        { label: 'Control (real)', data: controlSolido, borderColor: '#8A8378', backgroundColor: '#8A8378', borderWidth: 2, pointRadius: (c) => c.dataIndex === 0 ? 6 : 0, spanGaps: false },
+        { label: 'Control (proyección)', data: controlPunteado, borderColor: '#8A8378', borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, spanGaps: true },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 3.0, max: 5.0, ticks: { callback: v => v.toFixed(1) }, grid: { color: '#EAE0D5' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  renderRRDetalle(agregados.detallePiloto || []);
+}
+
+function renderRRDetalle(detalle) {
+  const tbody = document.getElementById('rrDetalleBody');
+  if (!tbody) return;
+
+  if (!detalle.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:12px 10px;color:#6B5D52;">Sin datos de sucursales piloto todavía.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = detalle.map(s => {
+    const rating = s.ratingPre != null ? s.ratingPre.toFixed(2) : '--';
+    const nReseñas = s.nPre != null ? s.nPre.toLocaleString('es-MX') : '--';
+    const ratingPost = s.ratingPost != null ? s.ratingPost.toFixed(2) : 'Sin datos aún';
+
+    let colorAtencion = '#8A8378';
+    let textoAtencion = '--';
+    if (s.ratingPre != null) {
+      if (s.ratingPre < 3.5) { colorAtencion = '#D85A30'; textoAtencion = 'Urgente'; }
+      else if (s.ratingPre < 4.0) { colorAtencion = '#C98500'; textoAtencion = 'Vigilar'; }
+      else { colorAtencion = '#1D9E75'; textoAtencion = 'Va bien'; }
+    }
+
+    return `
+      <tr>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;font-weight:600;">${s.nombre}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;font-weight:700;">${rating}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">${nReseñas}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#6B5D52;">${ratingPost}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">
+          <span style="display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:12px;padding:2px 9px;border-radius:6px;background:${colorAtencion}1F;color:${colorAtencion};">
+            ${textoAtencion}
+          </span>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
 // Punto de entrada de la sección — llamar junto al resto de loaders
 // en el Promise.all de arranque del dashboard.
 async function loadRRData() {
   await Promise.all([loadRRSnapshot(), loadRRReviews(), loadRRGrupos()]);
   const agregados = calcularAgregadosRR();
   console.log('R+R agregados:', agregados);
-  // TODO: aquí se conectan los KPI cards y las gráficas Chart.js
-  // (ver mockup RR_Tab_Dashboard.html) usando `agregados` y
-  // `rrSnapshot` (para el rating base "histórico" pre-2-sep) como
-  // las tres columnas de comparación: Base histórica → Pre-lanzamiento → Post-lanzamiento.
+  renderRRSection(agregados);
 }
   // Misma Web App que la sección de Respuestas, pero con doPost extendido
   // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
@@ -3464,11 +3641,6 @@ async function loadRRData() {
         backgroundColor: colorSolido,
         borderWidth: destacada ? 2.5 : 1,
         pointRadius: destacada ? 3 : 0,
-        // pointHitRadius agranda el área invisible de detección alrededor de
-        // cada punto (aunque no se vea, sigue siendo "cazable" con el mouse),
-        // y pointHoverRadius hace visible el punto solo al pasar el cursor —
-        // así se puede identificar cada sucursal en modo "todas" sin saturar
-        // la gráfica con 51 puntos fijos.
         pointHitRadius: 8,
         pointHoverRadius: destacada ? 5 : 4,
         tension: 0.3,
@@ -3482,23 +3654,16 @@ async function loadRRData() {
       data: { labels, datasets },
       options: {
         responsive: true,
-        // 'nearest' + intersect:false: basta con acercar el cursor a la línea
-        // (no hay que acertarle al pixel exacto) para que el tooltip muestre
-        // esa sucursal — clave cuando las líneas son delgadas y están encimadas.
         interaction: { mode: 'nearest', intersect: false },
         plugins: {
-          legend: { display: !!sucursalFiltro }, // con "todas" seleccionadas, 51 leyendas no caben ni ayudan
+          legend: { display: !!sucursalFiltro },
           tooltip: {
             callbacks: {
-              // Resalta el nombre de la sucursal en negrita-implícita (primera línea)
-              // antes del valor, para que quede claro a cuál línea perteneces al pasar el mouse.
               title: (items) => items.length ? items[0].dataset.label : '',
               label: (item) => `Quejas: ${item.formattedValue}`,
             },
           },
         },
-        // Clic sobre cualquier línea en modo "todas" -> filtra el dropdown a esa
-        // sucursal, para pasar de "identificar" a "aislar" en un solo clic.
         onClick: (evt, elements, chart) => {
           if (!elements.length) return;
           const datasetIndex = elements[0].datasetIndex;
@@ -3541,8 +3706,6 @@ async function loadRRData() {
 
     const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente', 'insightPorSucursal'];
     if (datos.length === 0) {
-      // Sin datos en el periodo elegido: se limpian canvas e insights en
-      // vez de dejar la gráfica/comentario de la corrida anterior.
       window._quejasRedesCharts = [];
       vacios.forEach(id => { document.getElementById(id).innerHTML = ''; });
       ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente', 'chartPorSucursal'].forEach(id => {
@@ -3562,15 +3725,6 @@ async function loadRRData() {
 
     generarInsightsQuejasRedes(datos);
   }
-
-  // ============================================
-  // Comentarios de análisis (estilo CRM) para las 4 gráficas
-  // ============================================
-  // Cada función lee los mismos "datos" ya filtrados por periodo y canal
-  // (redes sociales) que alimentaron la gráfica correspondiente, y arma
-  // un comentario corto y accionable — no una descripción de lo que ya
-  // se ve en la gráfica, sino una lectura de qué implica para el negocio
-  // y qué vale la pena revisar o vigilar.
 
   function generarInsightsQuejasRedes(datos) {
     document.getElementById('insightTendenciaMensual').innerHTML = insightTendencia(datos);
@@ -3644,8 +3798,6 @@ async function loadRRData() {
   }
 
   function insightGerente(datos) {
-    // Misma exclusión que renderChartPorGerente: el insight debe hablar
-    // de lo mismo que la gráfica de al lado, o el texto contradice el dibujo.
     const datosElegibles = datos.filter(q => q['Excluir_Seguimiento'] !== 'Sí');
     const mapaZona = window._quejasMapaZona || {};
     const porGerente = {};
@@ -3655,7 +3807,7 @@ async function loadRRData() {
       porGerente[g].total++;
       if (q.Estatus === 'Cerrada') porGerente[g].cerradas++;
     });
-    const entradas = Object.entries(porGerente).filter(([, v]) => v.total >= 2); // evita ruido de N muy chico
+    const entradas = Object.entries(porGerente).filter(([, v]) => v.total >= 2);
     if (entradas.length === 0) return '<strong>Lectura:</strong> Aún no hay casos nuevos registrados desde la activación del módulo de seguimiento — esta gráfica empezará a poblarse con los próximos casos de cada gerente.';
 
     const conPct = entradas.map(([g, v]) => ({ gerente: g, total: v.total, pct: Math.round((v.cerradas / v.total) * 100) }));
@@ -3676,16 +3828,6 @@ async function loadRRData() {
   // ============================================
   // Sección: Registrar Contacto por Redes Sociales
   // ============================================
-  // Cuando un cliente escribe por Meta (IG/FB/WhatsApp) mencionando un
-  // folio, esta herramienta evita que Abraham tenga que buscar
-  // manualmente la fila en el Sheet. Dos caminos:
-  //   - Folio SÍ existe en quejasData -> agregar nota + Canal_Secundario
-  //     a esa misma fila (NO se crea fila nueva, evita duplicar la queja
-  //     en reportes — mismo criterio ya usado para los 18 casos de
-  //     fusión confirmados el 12 de agosto).
-  //   - Folio NO existe -> ofrece crear una queja nueva desde cero (caso
-  //     de folio inventado/mal escrito, o reseña que nunca se sincronizó).
-  // Reutiliza el mismo token/URL de Web App que Aprobar/En Proceso/Cerrar.
 
   function buscarFolioContacto() {
     const input = document.getElementById('contactoFolioInput');
@@ -3706,10 +3848,6 @@ async function loadRRData() {
     }
   }
 
-  // Se dispara al elegir una sucursal en el formulario de "crear queja
-  // nueva" — llena automáticamente el campo Zona/Gerente (solo lectura)
-  // usando el mismo mapa Sucursal->Zona que ya usa el resto del
-  // dashboard, evitando que alguien asigne la zona incorrecta a mano.
   function autocompletarZonaContacto() {
     const sucursalSel = document.getElementById('contactoNuevoSucursal').value;
     const mapaZona = window._quejasMapaZona || {};
@@ -3724,13 +3862,6 @@ async function loadRRData() {
     const estatusActual = queja.Estatus || 'Nueva';
     const seReabrira = estatusActual === 'Cerrada';
 
-    // El folio queda registrado desde que nace en Google (para gráficas/
-    // conteos de reseñas eso no cambia). Pero el criterio de seguimiento es
-    // otro: la queja no se considera "atendible" hasta que el cliente
-    // efectivamente se comunica. Por eso, confirmar contacto por redes
-    // siempre manda la queja de vuelta a la cola activa ('Nueva'), incluso
-    // si ya estaba Cerrada — el contacto del cliente es lo que reabre el
-    // caso, no un límite de tiempo.
     const avisoReapertura = seReabrira
       ? `<div class="contacto-reopen-aviso">⚠ Esta queja estaba <strong>Cerrada</strong>. Al confirmar el contacto se reabrirá y volverá a la cola de seguimiento activo.</div>`
       : '';
@@ -3853,11 +3984,6 @@ async function loadRRData() {
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido.');
 
-      // Refleja el cambio localmente. El folio nace y se cuenta como
-      // reseña de Google para gráficas/métricas (eso no se toca). Pero
-      // para seguimiento, el contacto real del cliente por redes es lo
-      // que activa/reabre el caso — por eso siempre vuelve a 'Nueva',
-      // incluso si estaba 'Cerrada'.
       const fila = quejasData.find(q => q['Queja_ID'] === quejaId);
       let estabaCerrada = false;
       if (fila) {
@@ -3870,9 +3996,6 @@ async function loadRRData() {
         fila['Notas_Seguimiento'] = fila['Notas_Seguimiento'] ? (fila['Notas_Seguimiento'] + '\n' + notaNueva) : notaNueva;
       }
 
-      // Igual que al aprobar/procesar/cerrar desde el módulo de Seguimiento:
-      // refresca KPIs, ranking y la lista para que la queja aparezca de
-      // inmediato como activa, sin esperar un reload completo.
       updateSeguKpis();
       updateSeguRanking();
       renderSeguimiento();
@@ -3922,11 +4045,6 @@ async function loadRRData() {
 
       document.getElementById('contactoResultado').innerHTML = `<div class="contacto-found-card"><div class="contacto-found-title">✓ Queja nueva creada con folio ${data.folioNuevo || ''}.</div></div>`;
       document.getElementById('contactoFolioInput').value = '';
-      // No actualizamos quejasData localmente aquí porque la fila nueva
-      // se creó en el Sheet en este momento — el próximo refresh del
-      // dashboard (o recargar la página) la traerá. Evitamos reconstruir
-      // el objeto localmente para no arriesgar inconsistencia con lo
-      // que el backend realmente escribió.
     } catch (error) {
       console.error('Error al crear queja desde contacto:', error);
       boton.disabled = false;
@@ -3951,12 +4069,6 @@ async function loadRRData() {
   document.getElementById('seguGerenteFilter').addEventListener('change', renderSeguimiento);
   document.getElementById('seguCanalFilter').addEventListener('change', renderSeguimiento);
 
-  // updateRespSection() y updateSeguimientoSection() se llaman al final,
-  // después de loadQuejasData(), porque ambas dependen de
-  // window._quejasMapaZona (mapa Sucursal -> Zona/Gerente), que esa
-  // función es quien lo construye (dentro de populateQuejasMesFilter).
-  // updateSeguimientoSection() también depende de quejasData, cargada
-  // por loadQuejasSheetData() en paralelo con loadData().
   Promise.all([loadData(), loadQuejasSheetData(), loadRRData()])
     .then(() => loadQuejasData())
     .then(() => { updateRespSection(); updateSeguimientoSection(); });
