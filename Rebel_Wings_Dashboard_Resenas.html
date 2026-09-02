@@ -1095,20 +1095,42 @@ async function loadRRGrupos() {
 // - post: [RR_LANZAMIENTO, hoy]               → periodo de campaña
 // Devuelve { piloto: {...}, control: {...} } con rating promedio
 // ponderado y conteo, para cada ventana.
+// REEMPLAZA la función calcularAgregadosRR() completa por esta versión.
+// Diferencia clave: cada bucket arranca con el snapshot (rating base +
+// su volumen histórico) como punto de partida ponderado, no en blanco.
+// Las reseñas nuevas que van entrando se suman encima con su propio
+// peso, así el promedio no se distorsiona por pocas reseñas nuevas
+// sobre una base histórica grande.
 function calcularAgregadosRR() {
   const acumulador = {
     piloto: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
     control: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
   };
 
+  // Punto de partida: cada sucursal del snapshot aporta su rating base
+  // ponderado por su volumen histórico, sembrando el bucket "pre" —
+  // porque el snapshot representa el estado justo ANTES del arranque
+  // del monitoreo (hoy, 2-sep), que cae dentro de la ventana pre-lanzamiento.
+  Object.keys(rrSnapshot).forEach(nombre => {
+    const info = rrSnapshot[nombre];
+    if (!info || (info.grupo !== 'Piloto' && info.grupo !== 'Control')) return;
+    if (!Number.isFinite(info.ratingBase) || !Number.isFinite(info.totalBase)) return;
+
+    const clave = info.grupo === 'Piloto' ? 'piloto' : 'control';
+    acumulador[clave].pre.suma += info.ratingBase * info.totalBase;
+    acumulador[clave].pre.n += info.totalBase;
+  });
+
+  // Reseñas nuevas capturadas desde el snapshot: se suman encima del
+  // bucket que corresponda según su fecha real.
   rrReviews.forEach(row => {
     const nombre = row['Nombre de sucursal'];
     if (!nombre) return;
 
     const grupo = (rrSnapshot[nombre] && rrSnapshot[nombre].grupo) || rrGrupoPorSucursal[nombre];
-    if (grupo !== 'Piloto' && grupo !== 'Control') return; // sucursal sin clasificar, se ignora
+    if (grupo !== 'Piloto' && grupo !== 'Control') return;
 
-    const fecha = parseFecha(row['Fecha']); // reutiliza parseFecha() ya definida en el dashboard
+    const fecha = parseFecha(row['Fecha']);
     if (!fecha) return;
 
     const calificacion = Number(row['Calificación']);
