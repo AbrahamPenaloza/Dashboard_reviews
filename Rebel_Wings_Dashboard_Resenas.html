@@ -975,6 +975,21 @@
       </div>
     </div>
 
+    <div class="rr-chart-card">
+      <div class="rr-ctitle">Reseñas nuevas por sucursal — tendencia</div>
+      <div class="rr-csub">Volumen diario por sucursal individual (piloto y control). Elige una sucursal para aislarla, o deja "Todas" para ver el panorama completo.</div>
+      <div class="control-group" style="margin-bottom: 10px;">
+        <label for="rrSucursalFilter">Sucursal:</label>
+        <select id="rrSucursalFilter">
+          <option value="">Todas las sucursales</option>
+        </select>
+      </div>
+      <div style="position:relative;height:280px;">
+        <canvas id="rrPorSucursalChart" role="img" aria-label="Gráfica de líneas mostrando el volumen diario de reseñas nuevas por sucursal individual, con opción de filtrar por una sola sucursal">Tendencia diaria de reseñas nuevas por sucursal desde el snapshot base.</canvas>
+      </div>
+      <div class="rr-note" id="rrPorSucursalInsight" style="margin-top:14px;"></div>
+    </div>
+
     <div class="rr-chart-card" style="padding:16px 18px;">
       <div class="rr-ctitle">Detalle por sucursal piloto</div>
       <div class="rr-csub">Ordenado de menor a mayor rating — las primeras filas son las que necesitan más atención operativa.</div>
@@ -1024,6 +1039,9 @@
     }
     if (tabId === 'rr' && typeof rrVolumeChartInstance !== 'undefined' && rrVolumeChartInstance) {
       rrVolumeChartInstance.resize();
+    }
+    if (tabId === 'rr' && typeof rrPorSucursalChartInstance !== 'undefined' && rrPorSucursalChartInstance) {
+      rrPorSucursalChartInstance.resize();
     }
   }
 
@@ -1294,7 +1312,7 @@ function calcularAgregadosRR() {
 let rrTrendChartInstance = null;
 let rrVolumeChartInstance = null;
 
-function renderRRSection(agregados, serieDiaria, volumenDiario) {
+function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucursal) {
   const launch = new Date(2026, 8, 14);
   const today = new Date();
   const diffDays = Math.ceil((launch - today) / (1000 * 60 * 60 * 24));
@@ -1375,6 +1393,99 @@ function renderRRSection(agregados, serieDiaria, volumenDiario) {
       },
     },
   });
+
+  renderRRPorSucursal(volumenPorSucursal);
+}
+
+let rrPorSucursalChartInstance = null;
+
+// Popula el dropdown una sola vez (igual que populateSucursalTendenciaFilter
+// en Quejas Redes Sociales) y dibuja/redibuja la gráfica de líneas por
+// sucursal, resaltando la seleccionada y atenuando el resto.
+function renderRRPorSucursal(volumenPorSucursal) {
+  const select = document.getElementById('rrSucursalFilter');
+  if (select && !select.dataset.poblado) {
+    const nombres = volumenPorSucursal.series.map(s => s.nombre).sort();
+    select.innerHTML = '<option value="">Todas las sucursales</option>' +
+      nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+    select.dataset.poblado = '1';
+    select.addEventListener('change', () => renderRRPorSucursal(volumenPorSucursal));
+  }
+
+  const sucursalFiltro = select ? select.value : '';
+  const seriesAMostrar = sucursalFiltro
+    ? volumenPorSucursal.series.filter(s => s.nombre === sucursalFiltro)
+    : volumenPorSucursal.series;
+
+  const datasets = seriesAMostrar.map(s => {
+    const destacada = !!sucursalFiltro;
+    let hash = 0;
+    for (let i = 0; i < s.nombre.length; i++) hash = (hash * 31 + s.nombre.charCodeAt(i)) % 360;
+    const colorSolido = `hsl(${hash}, 65%, 45%)`;
+    const colorTenue = `hsla(${hash}, 65%, 55%, 0.30)`;
+    return {
+      label: s.nombre,
+      data: s.valores,
+      borderColor: destacada ? colorSolido : colorTenue,
+      backgroundColor: colorSolido,
+      borderWidth: destacada ? 2.5 : 1,
+      pointRadius: destacada ? 3 : 0,
+      pointHitRadius: 8,
+      pointHoverRadius: destacada ? 5 : 4,
+      tension: 0.3,
+      fill: false,
+    };
+  });
+
+  if (rrPorSucursalChartInstance) {
+    rrPorSucursalChartInstance.destroy();
+  }
+
+  const ctx = document.getElementById('rrPorSucursalChart');
+  rrPorSucursalChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels: volumenPorSucursal.labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { display: !!sucursalFiltro },
+        tooltip: {
+          callbacks: {
+            title: (items) => items.length ? items[0].dataset.label : '',
+            label: (item) => `Reseñas: ${item.formattedValue}`,
+          },
+        },
+      },
+      onClick: (evt, elements, chart) => {
+        if (!elements.length) return;
+        const datasetIndex = elements[0].datasetIndex;
+        const nombre = chart.data.datasets[datasetIndex].label;
+        const sel = document.getElementById('rrSucursalFilter');
+        if (sel.value !== nombre) {
+          sel.value = nombre;
+          renderRRPorSucursal(volumenPorSucursal);
+        }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#EAE0D5' } },
+        x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
+      },
+    },
+  });
+
+  const insightEl = document.getElementById('rrPorSucursalInsight');
+  if (sucursalFiltro) {
+    const total = seriesAMostrar[0] ? seriesAMostrar[0].valores.reduce((a, b) => a + b, 0) : 0;
+    insightEl.textContent = `${sucursalFiltro} registra ${total} reseña(s) nueva(s) desde el 2 de septiembre.`;
+  } else {
+    const totales = volumenPorSucursal.series.map(s => ({ nombre: s.nombre, total: s.valores.reduce((a, b) => a + b, 0) }));
+    const top = totales.sort((a, b) => b.total - a.total)[0];
+    insightEl.textContent = top && top.total > 0
+      ? `${top.nombre} concentra el mayor número de reseñas nuevas: ${top.total}. Haz clic en una línea o usa el filtro para aislarla.`
+      : 'Aún no hay reseñas nuevas registradas en el periodo.';
+  }
 }
 
 function renderRRDetalle(detalle) {
@@ -1533,6 +1644,60 @@ function calcularVolumenDiarioRR() {
   return { labels, pilotoVolumen, controlVolumen };
 }
 
+// Construye el conteo DIARIO de reseñas nuevas por SUCURSAL individual
+// (las 52, piloto + control), desde el snapshot hasta hoy. Es la base
+// de la gráfica de líneas con dropdown, mismo patrón que
+// renderChartPorSucursal en Quejas Redes Sociales.
+function calcularVolumenDiarioPorSucursalRR() {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const inicio = new Date(RR_SNAPSHOT_FECHA);
+  inicio.setHours(0, 0, 0, 0);
+
+  const porSucursalDia = {}; // 'NOMBRE' -> { 'yyyy-mm-dd': n }
+  const sucursalesConocidas = new Set();
+
+  Object.keys(rrSnapshot).forEach(nombre => {
+    const info = rrSnapshot[nombre];
+    if (info && (info.grupo === 'Piloto' || info.grupo === 'Control')) {
+      sucursalesConocidas.add(nombre);
+    }
+  });
+  Object.keys(rrGrupoPorSucursal).forEach(nombre => {
+    const grupo = rrGrupoPorSucursal[nombre];
+    if (grupo === 'Piloto' || grupo === 'Control') sucursalesConocidas.add(nombre);
+  });
+
+  rrReviews.forEach(row => {
+    const nombre = row['Nombre de sucursal'];
+    if (!nombre || !sucursalesConocidas.has(nombre)) return;
+    const fecha = parseFecha(row['Fecha']);
+    if (!fecha) return;
+    const clave = fecha.getFullYear() + '-' + String(fecha.getMonth() + 1).padStart(2, '0') + '-' + String(fecha.getDate()).padStart(2, '0');
+    if (!porSucursalDia[nombre]) porSucursalDia[nombre] = {};
+    porSucursalDia[nombre][clave] = (porSucursalDia[nombre][clave] || 0) + 1;
+  });
+
+  const labelsClaves = [];
+  const labels = [];
+  const cursor = new Date(inicio);
+  while (cursor <= hoy) {
+    const clave = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0') + '-' + String(cursor.getDate()).padStart(2, '0');
+    labelsClaves.push(clave);
+    labels.push(cursor.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const sucursales = [...sucursalesConocidas].sort();
+  const series = sucursales.map(nombre => ({
+    nombre,
+    grupo: (rrSnapshot[nombre] && rrSnapshot[nombre].grupo) || rrGrupoPorSucursal[nombre] || null,
+    valores: labelsClaves.map(clave => (porSucursalDia[nombre] && porSucursalDia[nombre][clave]) || 0),
+  }));
+
+  return { labels, series };
+}
+
 // Punto de entrada de la sección — llamar junto al resto de loaders
 // en el Promise.all de arranque del dashboard.
 async function loadRRData() {
@@ -1540,8 +1705,9 @@ async function loadRRData() {
   const agregados = calcularAgregadosRR();
   const serieDiaria = calcularSerieDiariaRR();
   const volumenDiario = calcularVolumenDiarioRR();
+  const volumenPorSucursal = calcularVolumenDiarioPorSucursalRR();
   console.log('R+R agregados:', agregados);
-  renderRRSection(agregados, serieDiaria, volumenDiario);
+  renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucursal);
 }
   // Misma Web App que la sección de Respuestas, pero con doPost extendido
   // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
