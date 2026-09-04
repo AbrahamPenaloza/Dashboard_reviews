@@ -963,6 +963,18 @@
       </div>
     </div>
 
+    <div class="rr-chart-card">
+      <div class="rr-ctitle">Reseñas nuevas por día — Piloto vs. Control</div>
+      <div class="rr-csub">Volumen diario, no acumulado. Esta gráfica se mueve mucho antes que el rating: útil para ver el efecto de la campaña sin esperar a que cambie la calificación.</div>
+      <div class="rr-legend-row">
+        <span class="rr-li"><span class="rr-dot" style="background:#C8102E;"></span>Piloto</span>
+        <span class="rr-li"><span class="rr-dot" style="background:#8A8378;"></span>Control</span>
+      </div>
+      <div style="position:relative;height:240px;">
+        <canvas id="rrVolumeChart" role="img" aria-label="Gráfica de barras mostrando el número de reseñas nuevas por día, comparando sucursales piloto y control">Volumen diario de reseñas nuevas por grupo, desde el snapshot base.</canvas>
+      </div>
+    </div>
+
     <div class="rr-chart-card" style="padding:16px 18px;">
       <div class="rr-ctitle">Detalle por sucursal piloto</div>
       <div class="rr-csub">Ordenado de menor a mayor rating — las primeras filas son las que necesitan más atención operativa.</div>
@@ -1009,6 +1021,9 @@
     }
     if (tabId === 'rr' && typeof rrTrendChartInstance !== 'undefined' && rrTrendChartInstance) {
       rrTrendChartInstance.resize();
+    }
+    if (tabId === 'rr' && typeof rrVolumeChartInstance !== 'undefined' && rrVolumeChartInstance) {
+      rrVolumeChartInstance.resize();
     }
   }
 
@@ -1277,8 +1292,9 @@ function calcularAgregadosRR() {
 // una vez que `agregados` (incluyendo detallePiloto) está listo.
 // ============================================================
 let rrTrendChartInstance = null;
+let rrVolumeChartInstance = null;
 
-function renderRRSection(agregados, serieDiaria) {
+function renderRRSection(agregados, serieDiaria, volumenDiario) {
   const launch = new Date(2026, 8, 14);
   const today = new Date();
   const diffDays = Math.ceil((launch - today) / (1000 * 60 * 60 * 24));
@@ -1332,6 +1348,33 @@ function renderRRSection(agregados, serieDiaria) {
   });
 
   renderRRDetalle(agregados.detallePiloto || []);
+
+  // Gráfica de volumen diario — barras agrupadas Piloto vs Control.
+  // Más sensible que el rating: se mueve de inmediato con cada reseña
+  // nueva, sin esperar a que el promedio acumulado reaccione.
+  if (rrVolumeChartInstance) {
+    rrVolumeChartInstance.destroy();
+  }
+  const ctxVol = document.getElementById('rrVolumeChart');
+  rrVolumeChartInstance = new Chart(ctxVol, {
+    type: 'bar',
+    data: {
+      labels: volumenDiario.labels,
+      datasets: [
+        { label: 'Piloto', data: volumenDiario.pilotoVolumen, backgroundColor: '#C8102E', borderRadius: 3, maxBarThickness: 22 },
+        { label: 'Control', data: volumenDiario.controlVolumen, backgroundColor: '#8A8378', borderRadius: 3, maxBarThickness: 22 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#EAE0D5' } },
+        x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
+      },
+    },
+  });
 }
 
 function renderRRDetalle(detalle) {
@@ -1445,14 +1488,60 @@ function calcularSerieDiariaRR() {
   return { labels, pilotoSerie, controlSerie };
 }
 
+// Construye el conteo DIARIO (no acumulado) de reseñas nuevas por grupo,
+// desde el snapshot hasta hoy. A diferencia de calcularSerieDiariaRR
+// (que acumula rating), esta serie muestra el volumen de CADA día por
+// separado — es la señal más sensible de que algo se está moviendo,
+// porque el rating tarda mucho volumen en reaccionar, pero el conteo
+// de reseñas nuevas se mueve de inmediato.
+function calcularVolumenDiarioRR() {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const inicio = new Date(RR_SNAPSHOT_FECHA);
+  inicio.setHours(0, 0, 0, 0);
+
+  const porDia = {}; // 'yyyy-mm-dd' -> { piloto: n, control: n }
+  rrReviews.forEach(row => {
+    const nombre = row['Nombre de sucursal'];
+    if (!nombre) return;
+    const grupo = (rrSnapshot[nombre] && rrSnapshot[nombre].grupo) || rrGrupoPorSucursal[nombre];
+    if (grupo !== 'Piloto' && grupo !== 'Control') return;
+
+    const fecha = parseFecha(row['Fecha']);
+    if (!fecha) return;
+
+    const clave = fecha.getFullYear() + '-' + String(fecha.getMonth() + 1).padStart(2, '0') + '-' + String(fecha.getDate()).padStart(2, '0');
+    if (!porDia[clave]) porDia[clave] = { piloto: 0, control: 0 };
+    if (grupo === 'Piloto') porDia[clave].piloto++;
+    else porDia[clave].control++;
+  });
+
+  const labels = [];
+  const pilotoVolumen = [];
+  const controlVolumen = [];
+
+  const cursor = new Date(inicio);
+  while (cursor <= hoy) {
+    const clave = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0') + '-' + String(cursor.getDate()).padStart(2, '0');
+    const deHoy = porDia[clave];
+    labels.push(cursor.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }));
+    pilotoVolumen.push(deHoy ? deHoy.piloto : 0);
+    controlVolumen.push(deHoy ? deHoy.control : 0);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return { labels, pilotoVolumen, controlVolumen };
+}
+
 // Punto de entrada de la sección — llamar junto al resto de loaders
 // en el Promise.all de arranque del dashboard.
 async function loadRRData() {
   await Promise.all([loadRRSnapshot(), loadRRReviews(), loadRRGrupos()]);
   const agregados = calcularAgregadosRR();
   const serieDiaria = calcularSerieDiariaRR();
+  const volumenDiario = calcularVolumenDiarioRR();
   console.log('R+R agregados:', agregados);
-  renderRRSection(agregados, serieDiaria);
+  renderRRSection(agregados, serieDiaria, volumenDiario);
 }
   // Misma Web App que la sección de Respuestas, pero con doPost extendido
   // para manejar también acciones de seguimiento (ver SEGUIMIENTO_WEBAPP_URL
