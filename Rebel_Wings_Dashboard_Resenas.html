@@ -467,6 +467,7 @@
     <button class="main-tab-btn active" onclick="cambiarTabPrincipal('resenas', this)">📍 Reseñas</button>
     <button class="main-tab-btn" onclick="cambiarTabPrincipal('quejas-redes', this)">📱 Quejas Redes Sociales</button>
     <button class="main-tab-btn" onclick="cambiarTabPrincipal('rr', this)">🎯 R+R</button>
+    <button class="main-tab-btn" onclick="cambiarTabPrincipal('rewards', this)">🎁 Rebel Rewards</button>
   </div>
 
   <div id="tab-resenas" class="main-tab-panel active">
@@ -1013,6 +1014,111 @@
   </div>
 
   </div> <!-- /tab-rr -->
+  <div id="tab-rewards" class="main-tab-panel">
+
+  <style>
+    .rw-nota{background:#FBF3E9;border:1px solid #F0E0C8;border-radius:10px;padding:10px 14px;font-size:12px;color:#6B5D52;line-height:1.5;margin-top:14px;}
+    .rw-nota ul{margin:6px 0 0;padding-left:18px;}
+    .rw-fresh{font-size:12px;color:#999;margin-left:auto;}
+    .rw-fresh.vieja{color:#c62839;font-weight:600;}
+    .rw-sub{font-size:13px;color:#999;margin:-8px 0 14px;}
+    .rw-table{width:100%;border-collapse:collapse;font-size:13px;}
+    .rw-table th{font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#999;border-bottom:2px solid #e63946;padding:8px;text-align:right;font-weight:700;}
+    .rw-table td{padding:8px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;}
+    .rw-table th:first-child,.rw-table td:first-child{text-align:left;}
+    .rw-table tbody tr:hover{background:#fafafa;}
+    .rw-table.rw-click tbody tr{cursor:pointer;}
+    .rw-table tbody tr.sel{background:#fff5f5;box-shadow:inset 3px 0 0 #e63946;}
+    .rw-table td.rw-low{color:#999;font-style:italic;}
+    .rw-bar{display:inline-block;height:6px;border-radius:3px;background:#2a9d8f;vertical-align:middle;margin-right:8px;}
+  </style>
+
+  <div id="rwAviso"></div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="rwZona">Zona:</label>
+      <select id="rwZona"><option value="">Todas las zonas</option></select>
+    </div>
+    <div class="control-group">
+      <label for="rwSucursal">Sucursal:</label>
+      <select id="rwSucursal"><option value="">Todas las sucursales</option></select>
+    </div>
+    <span class="rw-fresh" id="rwFrescura"></span>
+  </div>
+
+  <div class="kpi-grid" id="rwKpis">
+    <div class="loading">Cargando Rebel Rewards…</div>
+  </div>
+
+  <div class="section">
+    <h2 id="rwTituloEvo">Alinfinitas registradas y canjeadas por mes</h2>
+    <p class="rw-sub">Cada canje se atribuye al mes de su ticket. Debajo de cada mes va el % de canje. El mes en curso se ve más claro porque todavía puede cambiar.</p>
+    <div class="chart-container">
+      <canvas id="rwChartEvo" role="img" aria-label="Alinfinitas registradas y canjeadas por mes"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-grid" style="margin-bottom:24px;">
+    <div class="chart-card">
+      <h3>Usuarios nuevos por mes</h3>
+      <div style="position:relative;height:260px;">
+        <canvas id="rwChartUsr" role="img" aria-label="Usuarios nuevos por mes"></canvas>
+      </div>
+      <div class="chart-insight">Total del programa. El registro de usuarios no se separa por sucursal.</div>
+    </div>
+    <div class="chart-card">
+      <h3>% de canje por zona</h3>
+      <div style="position:relative;height:260px;">
+        <canvas id="rwChartZona" role="img" aria-label="Porcentaje de canje por zona"></canvas>
+      </div>
+      <div class="chart-insight">Entre paréntesis, las Alinfinitas registradas de cada zona. Compara siempre con ese volumen a la vista.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>📍 % de canje por sucursal</h2>
+    <p class="rw-sub">Acumulado desde el arranque del programa. Toca una sucursal para ver su evolución arriba.</p>
+    <div class="controls" style="margin-bottom:12px;">
+      <div class="control-group">
+        <label for="rwMin">Mostrar sucursales con al menos:</label>
+        <select id="rwMin">
+          <option value="0">0 Alinfinitas</option>
+          <option value="30" selected>30 Alinfinitas</option>
+          <option value="100">100 Alinfinitas</option>
+          <option value="300">300 Alinfinitas</option>
+        </select>
+      </div>
+      <span class="rw-fresh" id="rwRankCount"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="rw-table rw-click">
+        <thead>
+          <tr><th>Sucursal</th><th>Zona</th><th>Tickets</th><th>Alinf. registradas</th><th>Canjeadas</th><th>% de canje</th></tr>
+        </thead>
+        <tbody id="rwRankBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>📋 Encuestas post-canje</h2>
+    <p class="rw-sub">Global, todos los meses. Cada dato trae su número de respuestas (n); en cursiva, las muestras de menos de 30.</p>
+    <div style="overflow-x:auto;">
+      <table class="rw-table" id="rwEncTabla"></table>
+    </div>
+    <div class="rw-nota">
+      <strong>Cómo leer este tab</strong>
+      <ul>
+        <li>Los meses recientes tienen un % de canje provisional: un ticket de este mes todavía puede canjearse.</li>
+        <li>Se incluyen todos los tickets registrados, incluso los que llegaron fuera de la ventana de 48 h.</li>
+        <li>Las encuestas sin sucursal cuentan en los totales de encuestas, pero no en ningún ranking por sucursal.</li>
+        <li>El desglose de encuestas por sucursal y las alertas de calificaciones bajas se conectan en una siguiente etapa.</li>
+      </ul>
+    </div>
+  </div>
+
+</div> <!-- /tab-rewards -->
 </div>
 
 <script>
@@ -1042,6 +1148,9 @@
     }
     if (tabId === 'rr' && typeof rrPorSucursalChartInstance !== 'undefined' && rrPorSucursalChartInstance) {
       rrPorSucursalChartInstance.resize();
+    }
+    if (tabId === 'rewards' && typeof rwOnShow === 'function') {
+      rwOnShow();
     }
   }
 
@@ -4399,9 +4508,396 @@ async function loadRRData() {
   document.getElementById('seguGerenteFilter').addEventListener('change', renderSeguimiento);
   document.getElementById('seguCanalFilter').addEventListener('change', renderSeguimiento);
 
+  // ============================================================
+  // FIN de las secciones originales — a partir de aquí: REBEL REWARDS
+  // ============================================================
+  // ============================================================
+  // SECCIÓN REBEL REWARDS — programa de lealtad (Alinfinitas gratis)
+  // Lee la hoja "Rebel Rewards Dashboard" (solo datos agregados:
+  // sin nombres, teléfonos ni comentarios de clientes).
+  // Mismo patrón gviz que loadRRSnapshot / loadReviewsData.
+  // Todo lleva prefijo rw* para no chocar con el resto del dashboard.
+  // Depende de: Chart.js, window._quejasMapaZona y colorDeZona() (ya existen).
+  // ============================================================
+  const RW_SHEET_ID = '1D99-dW785Xy_Yl_POQWnurrG5EcrqYiDprbtf8DqLtU';
+  const RW_COLOR_REG = '#e63946';
+  const RW_COLOR_CANJE = '#2a9d8f';
+  const RW_MUESTRA_MIN = 30; // por debajo de esto, la n se marca como muestra chica
+  
+  let rwSucMes = [];            // RR_Sucursal_Mes normalizada
+  let rwEncMes = [];            // RR_Encuestas_Mes normalizada
+  let rwUsrMes = [];            // RR_Usuarios_Mes normalizada
+  let rwControl = {};           // RR_Control (clave -> valor)
+  let rwMesesParciales = new Set();
+  let rwCharts = {};
+  let rwEventos = false;
+  const rwFiltro = { zona: '', sucursal: '' };
+  
+  function rwNum(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+  function rwFmt(n) { return Number(n).toLocaleString('es-MX'); }
+  function rwPct(a, b) { return b > 0 ? (100 * a / b) : null; }
+  function rwFp(v) { return (v === null || v === undefined) ? '—' : v.toFixed(1) + '%'; }
+  function rwEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  
+  // Los meses viven como texto "2026-05" (la hoja los fuerza a texto); se acepta
+  // también un Date por si Google los reinterpreta.
+  function rwMesKey(v) {
+    if (v instanceof Date) return v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0');
+    const s = String(v == null ? '' : v).trim();
+    const g = s.match(/^Date\((\d+),(\d+)/);
+    if (g) return g[1] + '-' + String(Number(g[2]) + 1).padStart(2, '0');
+    const m = s.match(/^(\d{4})-(\d{2})/);
+    return m ? m[1] + '-' + m[2] : '';
+  }
+  function rwMesLabel(key) {
+    const p = key.split('-');
+    return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
+  }
+  function rwMesActual() {
+    const h = new Date();
+    return h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0');
+  }
+  
+  // headers=1: sin esto, gviz puede tomar la fila de encabezados como dato
+  // en pestañas que son todo texto (RR_Mapa, RR_Control).
+  async function rwLeerHoja(nombre) {
+    const url = `https://docs.google.com/spreadsheets/d/${RW_SHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(nombre)}`;
+    const response = await fetch(url);
+    const text = await response.text();
+    if (!text.includes('google.visualization.Query.setResponse')) {
+      throw new Error(`"${nombre}" no devolvió datos válidos. Verifica que la hoja sea pública y que la pestaña exista.`);
+    }
+    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    if (!json.table) throw new Error(`"${nombre}": la hoja respondió con error.`);
+    const cols = json.table.cols.map(c => (c.label || '').trim());
+    return json.table.rows.map(r => {
+      const row = {};
+      r.c.forEach((cell, i) => { row[cols[i]] = cell ? cell.v : null; });
+      return row;
+    });
+  }
+  
+  function rwExigir(filas, nombre, requeridas) {
+    if (!filas.length) throw new Error(`"${nombre}" está vacía.`);
+    const faltan = requeridas.filter(c => !(c in filas[0]));
+    if (faltan.length) throw new Error(`"${nombre}": faltan las columnas ${faltan.join(', ')}.`);
+  }
+  
+  function rwMostrarAvisos(avisos) {
+    document.getElementById('rwAviso').innerHTML = avisos.map(a =>
+      `<div class="error" style="background:#FFF6E0;color:#8A5A00;">${rwEsc(a)}</div>`).join('');
+  }
+  
+  async function loadRewardsData() {
+    const avisos = [];
+    try {
+      const resultados = await Promise.all([
+        rwLeerHoja('RR_Sucursal_Mes'), rwLeerHoja('RR_Encuestas_Mes'), rwLeerHoja('RR_Usuarios_Mes')
+      ]);
+      const suc = resultados[0], enc = resultados[1], usr = resultados[2];
+      rwExigir(suc, 'RR_Sucursal_Mes', ['sucursal', 'mes', 'tickets', 'alinf_registradas', 'canjes_por_mes_canje', 'canjes_cohorte']);
+      rwExigir(enc, 'RR_Encuestas_Mes', ['mes', 'encuestas', 'atencion_prom', 'atencion_n', 'rapidez_prom', 'rapidez_n',
+        'caliente_pct', 'caliente_n', 'equipo_pct', 'equipo_n', 'volveria_pct', 'volveria_n']);
+      rwExigir(usr, 'RR_Usuarios_Mes', ['mes', 'nuevos']);
+  
+      // Opcionales: si fallan, el tab sigue funcionando y lo dice.
+      const mapa = {};
+      try {
+        const filasMapa = await rwLeerHoja('RR_Mapa');
+        rwExigir(filasMapa, 'RR_Mapa', ['rr_nombre', 'nombre_dashboard']);
+        filasMapa.forEach(r => {
+          const k = String(r.rr_nombre || '').trim();
+          if (k) mapa[k] = String(r.nombre_dashboard || '').trim() || k;
+        });
+      } catch (e) {
+        console.warn('Rebel Rewards: RR_Mapa no disponible.', e);
+        avisos.push('No se pudo leer RR_Mapa: se muestran los nombres originales de Rebel Rewards y sin zona.');
+      }
+      rwControl = {};
+      try {
+        const ctrl = await rwLeerHoja('RR_Control');
+        ctrl.forEach(r => { rwControl[String(r.clave || '').trim()] = r.valor; });
+      } catch (e) { console.warn('Rebel Rewards: RR_Control no disponible.', e); }
+  
+      const zonas = window._quejasMapaZona || {};
+      if (!Object.keys(zonas).length) avisos.push('Las zonas todavía no se cargaron: las sucursales aparecen como "Sin zona".');
+  
+      const sinPareja = new Set();
+      rwSucMes = suc.map(r => {
+        const orig = String(r.sucursal || '').trim();
+        const mes = rwMesKey(r.mes);
+        if (!orig || !mes) return null;
+        let nombre = mapa[orig];
+        if (!nombre) { nombre = orig; sinPareja.add(orig); }
+        return {
+          nombre, mes, zona: zonas[nombre] || 'Sin zona',
+          t: rwNum(r.tickets), reg: rwNum(r.alinf_registradas),
+          cm: rwNum(r.canjes_por_mes_canje), cc: rwNum(r.canjes_cohorte),
+          parcial: r.mes_parcial === true || mes === rwMesActual()
+        };
+      }).filter(Boolean);
+      if (sinPareja.size && Object.keys(mapa).length) {
+        avisos.push(`${sinPareja.size} sucursal(es) sin pareja en RR_Mapa: ${[...sinPareja].slice(0, 5).join(', ')}.`);
+      }
+      rwMesesParciales = new Set(rwSucMes.filter(r => r.parcial).map(r => r.mes));
+  
+      rwEncMes = enc.map(r => ({
+        mes: rwMesKey(r.mes), n: rwNum(r.encuestas),
+        at: r.atencion_prom, atN: rwNum(r.atencion_n), ra: r.rapidez_prom, raN: rwNum(r.rapidez_n),
+        ca: r.caliente_pct, caN: rwNum(r.caliente_n), eq: r.equipo_pct, eqN: rwNum(r.equipo_n),
+        vo: r.volveria_pct, voN: rwNum(r.volveria_n)
+      })).filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
+  
+      rwUsrMes = usr.map(r => ({ mes: rwMesKey(r.mes), nuevos: rwNum(r.nuevos) }))
+        .filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
+  
+      if (rwControl.ultimo_error) {
+        avisos.push('La última actualización automática de datos falló: ' + String(rwControl.ultimo_error).slice(0, 160));
+      }
+      rwMostrarAvisos(avisos);
+      rwPoblarFiltros();
+      rwConectarEventos();
+      rwRenderTodo();
+      rwRenderFrescura();
+    } catch (error) {
+      console.error('Error cargando Rebel Rewards:', error);
+      document.getElementById('rwKpis').innerHTML = '';
+      document.getElementById('rwAviso').innerHTML =
+        `<div class="error">No se pudo cargar Rebel Rewards: ${rwEsc(error.message)}</div>`;
+    }
+  }
+  
+  function rwRenderFrescura() {
+    const el = document.getElementById('rwFrescura');
+    const v = rwControl.ultima_corrida ? String(rwControl.ultima_corrida) : '';
+    el.classList.remove('vieja');
+    if (!v) { el.textContent = ''; return; }
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    let texto = 'Datos al ' + v;
+    if (m) {
+      const dias = Math.floor((new Date() - new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) / 86400000);
+      if (dias > 2) { texto += ` · sin actualizar hace ${dias} días`; el.classList.add('vieja'); }
+    }
+    el.textContent = texto;
+  }
+  
+  // ---------- filtros ----------
+  function rwPoblarFiltros() {
+    const zonas = [...new Set(rwSucMes.map(r => r.zona))].sort();
+    const selZ = document.getElementById('rwZona');
+    selZ.innerHTML = '<option value="">Todas las zonas</option>' +
+      zonas.map(z => `<option value="${rwEsc(z)}">${rwEsc(z)}</option>`).join('');
+    if (!zonas.includes(rwFiltro.zona)) rwFiltro.zona = '';
+    selZ.value = rwFiltro.zona;
+    rwPoblarSucursales();
+  }
+  
+  function rwPoblarSucursales() {
+    const nombres = [...new Set(rwSucMes.filter(r => !rwFiltro.zona || r.zona === rwFiltro.zona).map(r => r.nombre))]
+      .sort((a, b) => a.localeCompare(b, 'es'));
+    const selS = document.getElementById('rwSucursal');
+    selS.innerHTML = '<option value="">Todas las sucursales</option>' +
+      nombres.map(n => `<option value="${rwEsc(n)}">${rwEsc(n)}</option>`).join('');
+    if (!nombres.includes(rwFiltro.sucursal)) rwFiltro.sucursal = '';
+    selS.value = rwFiltro.sucursal;
+  }
+  
+  function rwConectarEventos() {
+    if (rwEventos) return;
+    rwEventos = true;
+    document.getElementById('rwZona').addEventListener('change', e => {
+      rwFiltro.zona = e.target.value;
+      rwFiltro.sucursal = '';
+      rwPoblarSucursales();
+      rwRenderTodo();
+    });
+    document.getElementById('rwSucursal').addEventListener('change', e => {
+      rwFiltro.sucursal = e.target.value;
+      rwRenderTodo();
+    });
+    document.getElementById('rwMin').addEventListener('change', rwRenderRanking);
+    const cuerpo = document.getElementById('rwRankBody');
+    const elegir = fila => {
+      if (!fila) return;
+      const n = fila.dataset.n;
+      rwFiltro.sucursal = (rwFiltro.sucursal === n) ? '' : n;
+      document.getElementById('rwSucursal').value = rwFiltro.sucursal;
+      rwRenderTodo();
+    };
+    cuerpo.addEventListener('click', e => elegir(e.target.closest('tr')));
+    cuerpo.addEventListener('keydown', e => { if (e.key === 'Enter') elegir(e.target.closest('tr')); });
+  }
+  
+  // ---------- cálculos ----------
+  function rwFiltradas() {
+    return rwSucMes.filter(r =>
+      (!rwFiltro.zona || r.zona === rwFiltro.zona) && (!rwFiltro.sucursal || r.nombre === rwFiltro.sucursal));
+  }
+  
+  function rwPorMes(filas) {
+    const meses = [...new Set(rwSucMes.map(r => r.mes))].sort(); // eje estable aunque el filtro deje meses vacíos
+    const acc = {};
+    meses.forEach(m => { acc[m] = { mes: m, t: 0, reg: 0, cm: 0, cc: 0 }; });
+    filas.forEach(r => { const a = acc[r.mes]; a.t += r.t; a.reg += r.reg; a.cm += r.cm; a.cc += r.cc; });
+    return meses.map(m => acc[m]);
+  }
+  
+  function rwDestruir(k) { if (rwCharts[k]) { rwCharts[k].destroy(); rwCharts[k] = null; } }
+  function rwOnShow() { Object.keys(rwCharts).forEach(k => { if (rwCharts[k]) rwCharts[k].resize(); }); }
+  function rwColorZona(z) { return (typeof colorDeZona === 'function') ? colorDeZona(z) : '#457b9d'; }
+  
+  // ---------- render ----------
+  function rwRenderTodo() {
+    rwRenderKpis();
+    rwRenderEvolucion();
+    rwRenderUsuarios();
+    rwRenderZonas();
+    rwRenderRanking();
+    rwRenderEncuestas();
+  }
+  
+  function rwRenderKpis() {
+    let t = 0, reg = 0, cc = 0;
+    rwFiltradas().forEach(r => { t += r.t; reg += r.reg; cc += r.cc; });
+    const sinFiltro = !rwFiltro.zona && !rwFiltro.sucursal;
+    const usuarios = rwUsrMes.reduce((s, r) => s + r.nuevos, 0);
+    const primerMes = rwSucMes.length ? rwMesLabel(rwSucMes.map(r => r.mes).sort()[0]) : '';
+    const tarjetas = [
+      ['Tickets registrados', rwFmt(t), 'Desde ' + primerMes],
+      ['Alinfinitas registradas', rwFmt(reg), 'En tickets'],
+      ['Alinfinitas canjeadas', rwFmt(cc), 'Redenciones'],
+      ['% de canje', rwFp(rwPct(cc, reg)), 'Canjeadas ÷ registradas'],
+      ['Usuarios registrados', sinFiltro ? rwFmt(usuarios) : '—', sinFiltro ? 'Todo el programa' : 'No se separa por sucursal']
+    ];
+    document.getElementById('rwKpis').innerHTML = tarjetas.map(c =>
+      `<div class="kpi-card"><div class="kpi-label">${c[0]}</div><div class="kpi-value">${c[1]}</div><div class="kpi-change">${c[2]}</div></div>`
+    ).join('');
+  }
+  
+  function rwRenderEvolucion() {
+    const datos = rwPorMes(rwFiltradas());
+    const parc = datos.map(d => rwMesesParciales.has(d.mes));
+    const ambito = rwFiltro.sucursal || rwFiltro.zona;
+    document.getElementById('rwTituloEvo').textContent =
+      'Alinfinitas registradas y canjeadas por mes' + (ambito ? ' — ' + ambito : '');
+    rwDestruir('evo');
+    rwCharts.evo = new Chart(document.getElementById('rwChartEvo'), {
+      type: 'bar',
+      data: {
+        labels: datos.map(d => [rwMesLabel(d.mes), rwFp(rwPct(d.cc, d.reg))]),
+        datasets: [
+          { label: 'Registradas en tickets', data: datos.map(d => d.reg), borderRadius: 3,
+            backgroundColor: parc.map(p => p ? 'rgba(230,57,70,0.35)' : RW_COLOR_REG) },
+          { label: 'Canjeadas', data: datos.map(d => d.cc), borderRadius: 3,
+            backgroundColor: parc.map(p => p ? 'rgba(42,157,143,0.35)' : RW_COLOR_CANJE) }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { afterBody: items => {
+            const i = items[0].dataIndex, d = datos[i];
+            const l = ['% de canje: ' + rwFp(rwPct(d.cc, d.reg)), 'Tickets: ' + rwFmt(d.t)];
+            if (parc[i]) l.push('Mes en curso: puede cambiar');
+            return l;
+          } } }
+        },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+  
+  function rwRenderUsuarios() {
+    rwDestruir('usr');
+    rwCharts.usr = new Chart(document.getElementById('rwChartUsr'), {
+      type: 'bar',
+      data: {
+        labels: rwUsrMes.map(u => rwMesLabel(u.mes)),
+        datasets: [{ label: 'Usuarios nuevos', data: rwUsrMes.map(u => u.nuevos), borderRadius: 3,
+          backgroundColor: rwUsrMes.map(u => rwMesesParciales.has(u.mes) ? 'rgba(230,57,70,0.35)' : RW_COLOR_REG) }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+  
+  function rwRenderZonas() {
+    const porZona = {};
+    rwSucMes.forEach(r => {
+      const z = porZona[r.zona] = porZona[r.zona] || { reg: 0, cc: 0 };
+      z.reg += r.reg; z.cc += r.cc;
+    });
+    const lista = Object.keys(porZona).map(z => ({ zona: z, reg: porZona[z].reg, cc: porZona[z].cc,
+      p: rwPct(porZona[z].cc, porZona[z].reg) || 0 })).sort((a, b) => b.p - a.p);
+    rwDestruir('zona');
+    rwCharts.zona = new Chart(document.getElementById('rwChartZona'), {
+      type: 'bar',
+      data: {
+        labels: lista.map(z => `${z.zona} (${rwFmt(z.reg)})`),
+        datasets: [{ label: '% de canje', data: lista.map(z => +z.p.toFixed(1)), borderRadius: 3,
+          backgroundColor: lista.map(z => rwColorZona(z.zona)) }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: c => `${lista[c.dataIndex].p.toFixed(1)}% · ${rwFmt(lista[c.dataIndex].cc)} de ${rwFmt(lista[c.dataIndex].reg)} Alinfinitas` } } },
+        scales: { x: { beginAtZero: true, ticks: { callback: v => v + '%' } } }
+      }
+    });
+  }
+  
+  function rwRenderRanking() {
+    const min = Number(document.getElementById('rwMin').value) || 0;
+    const por = {};
+    rwSucMes.filter(r => !rwFiltro.zona || r.zona === rwFiltro.zona).forEach(r => {
+      const s = por[r.nombre] = por[r.nombre] || { nombre: r.nombre, zona: r.zona, t: 0, reg: 0, cc: 0 };
+      s.t += r.t; s.reg += r.reg; s.cc += r.cc;
+    });
+    const todas = Object.keys(por).map(k => por[k]);
+    const filas = todas.filter(s => s.reg >= min)
+      .map(s => Object.assign(s, { p: rwPct(s.cc, s.reg) || 0 }))
+      .sort((a, b) => b.p - a.p);
+    const mx = Math.max(1, ...filas.map(s => s.p));
+    document.getElementById('rwRankCount').textContent = `${filas.length} de ${todas.length} sucursales`;
+    document.getElementById('rwRankBody').innerHTML = filas.length ? filas.map(s => `
+      <tr data-n="${rwEsc(s.nombre)}" tabindex="0" class="${s.nombre === rwFiltro.sucursal ? 'sel' : ''}">
+        <td style="font-weight:500;">${rwEsc(s.nombre)}</td>
+        <td style="color:#666;">${rwEsc(s.zona)}</td>
+        <td>${rwFmt(s.t)}</td>
+        <td>${rwFmt(s.reg)}</td>
+        <td>${rwFmt(s.cc)}</td>
+        <td><span class="rw-bar" style="width:${Math.max(2, 60 * s.p / mx)}px;"></span><strong>${rwFp(s.p)}</strong></td>
+      </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:#999;padding:16px;">Sin sucursales con ese volumen.</td></tr>';
+  }
+  
+  function rwCeldaEnc(valor, n, esNota) {
+    if (valor === null || valor === undefined || valor === '' || !n) return '<td style="color:#ccc;">—</td>';
+    const txt = esNota ? Number(valor).toFixed(2) : (Number(valor) * 100).toFixed(1) + '%';
+    const bajo = n < RW_MUESTRA_MIN;
+    return `<td class="${bajo ? 'rw-low' : ''}" ${bajo ? 'title="Muestra chica"' : ''}>${txt}<small style="color:#999;margin-left:4px;">n=${rwFmt(n)}</small></td>`;
+  }
+  
+  function rwRenderEncuestas() {
+    const cab = '<thead><tr><th>Mes</th><th>Encuestas</th><th>Equipo pasó</th><th>Volvería</th><th>Atención (1–5)</th><th>Rapidez (1–5)</th><th>Comida caliente</th></tr></thead>';
+    const filas = rwEncMes.map(e => `<tr><td>${rwMesLabel(e.mes)}</td><td>${rwFmt(e.n)}</td>` +
+      rwCeldaEnc(e.eq, e.eqN, false) + rwCeldaEnc(e.vo, e.voN, false) +
+      rwCeldaEnc(e.at, e.atN, true) + rwCeldaEnc(e.ra, e.raN, true) + rwCeldaEnc(e.ca, e.caN, false) + '</tr>').join('');
+    document.getElementById('rwEncTabla').innerHTML = cab + '<tbody>' + filas + '</tbody>';
+  }
+
   Promise.all([loadData(), loadQuejasSheetData(), loadRRData()])
     .then(() => loadQuejasData())
-    .then(() => { updateRespSection(); updateSeguimientoSection(); });
+    .then(() => { updateRespSection(); updateSeguimientoSection(); })
+    // Rebel Rewards carga al final (necesita window._quejasMapaZona) y de forma
+    // independiente: si algo falla antes en la cadena, igual intenta cargar.
+    .finally(() => loadRewardsData());
 </script>
 </body>
 </html>
