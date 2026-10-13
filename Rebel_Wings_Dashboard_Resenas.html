@@ -1035,6 +1035,9 @@
     .rw-table.rw-click tbody tr{cursor:pointer;}
     .rw-table tbody tr.sel{background:#fff5f5;box-shadow:inset 3px 0 0 #e63946;}
     .rw-table td.rw-low{color:#999;font-style:italic;}
+    .rw-table td.rw-alerta{color:#c1121f;font-weight:700;}
+    .rw-na{background:#fff8ec;border:1px dashed #e9a23b;border-radius:10px;padding:14px 16px;margin-top:18px;}
+    .rw-na h3{margin:0 0 4px;font-size:15px;color:#8a5a00;}
     .rw-bar{display:inline-block;height:6px;border-radius:3px;background:#2a9d8f;vertical-align:middle;margin-right:8px;}
   </style>
 
@@ -1104,6 +1107,26 @@
         <tbody id="rwRankBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="section">
+    <h2>🏪 Encuestas por sucursal</h2>
+    <p class="rw-sub">Calificaciones menores a 4 se marcan en rojo (solo con 5 o más respuestas). Respeta los filtros de zona y sucursal de arriba. Ordenado de menor a mayor atención.</p>
+    <div class="controls" style="margin-bottom:12px;">
+      <div class="control-group">
+        <label for="rwEncPeriodo">Período:</label>
+        <select id="rwEncPeriodo">
+          <option value="0" selected>Todo el tiempo</option>
+          <option value="3">Últimos 3 meses</option>
+          <option value="1">Último mes</option>
+        </select>
+      </div>
+      <span class="rw-fresh" id="rwEncSucCount"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="rw-table" id="rwEncSucTabla"></table>
+    </div>
+    <div class="rw-na" id="rwEncNA"></div>
   </div>
 
   <div class="section">
@@ -4512,6 +4535,8 @@ async function loadRRData() {
   
   let rwSucMes = [];            // RR_Sucursal_Mes normalizada
   let rwEncMes = [];            // RR_Encuestas_Mes normalizada
+  let rwEncSuc = [];            // RR_Encuestas_Sucursal_Mes normalizada (incluye 'SIN SUCURSAL' si existe)
+  let rwEncSucOk = false;
   let rwUsrMes = [];            // RR_Usuarios_Mes normalizada
   let rwControl = {};           // RR_Control (clave -> valor)
   let rwMesesParciales = new Set();
@@ -4630,12 +4655,37 @@ async function loadRRData() {
       rwMesesParciales = new Set(rwSucMes.filter(r => r.parcial).map(r => r.mes));
   
       rwEncMes = enc.map(r => ({
-        mes: rwMesKey(r.mes), n: rwNum(r.encuestas),
+        mes: rwMesKey(r.mes), n: rwNum(r.encuestas), sinSuc: rwNum(r.encuestas_sin_sucursal),
         at: r.atencion_prom, atN: rwNum(r.atencion_n), ra: r.rapidez_prom, raN: rwNum(r.rapidez_n),
         ca: r.caliente_pct, caN: rwNum(r.caliente_n), eq: r.equipo_pct, eqN: rwNum(r.equipo_n),
         vo: r.volveria_pct, voN: rwNum(r.volveria_n)
       })).filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
   
+      // Opcional: encuestas por sucursal. Si falla, el resto del tab sigue.
+      rwEncSuc = []; rwEncSucOk = false;
+      try {
+        const es = await rwLeerHoja('RR_Encuestas_Sucursal_Mes');
+        rwExigir(es, 'RR_Encuestas_Sucursal_Mes', ['sucursal', 'mes', 'encuestas', 'atencion_prom', 'atencion_n',
+          'rapidez_prom', 'rapidez_n', 'caliente_pct', 'caliente_n', 'equipo_pct', 'equipo_n', 'volveria_pct', 'volveria_n']);
+        rwEncSuc = es.map(r => {
+          const orig = String(r.sucursal || '').trim();
+          const mes = rwMesKey(r.mes);
+          if (!orig || !mes) return null;
+          const esNA = orig.toUpperCase() === 'SIN SUCURSAL';
+          const nombre = esNA ? 'SIN SUCURSAL' : (mapa[orig] || orig);
+          return {
+            nombre, na: esNA, mes, zona: esNA ? '' : (zonas[nombre] || 'Sin zona'), n: rwNum(r.encuestas),
+            at: r.atencion_prom, atN: rwNum(r.atencion_n), ra: r.rapidez_prom, raN: rwNum(r.rapidez_n),
+            ca: r.caliente_pct, caN: rwNum(r.caliente_n), eq: r.equipo_pct, eqN: rwNum(r.equipo_n),
+            vo: r.volveria_pct, voN: rwNum(r.volveria_n)
+          };
+        }).filter(Boolean);
+        rwEncSucOk = true;
+      } catch (e) {
+        console.warn('Rebel Rewards: RR_Encuestas_Sucursal_Mes no disponible.', e);
+        avisos.push('No se pudo leer RR_Encuestas_Sucursal_Mes: la tabla de encuestas por sucursal no se muestra.');
+      }
+
       rwUsrMes = usr.map(r => ({ mes: rwMesKey(r.mes), nuevos: rwNum(r.nuevos) }))
         .filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
   
@@ -4704,6 +4754,7 @@ async function loadRRData() {
       rwRenderTodo();
     });
     document.getElementById('rwMin').addEventListener('change', rwRenderRanking);
+    document.getElementById('rwEncPeriodo').addEventListener('change', rwRenderEncuestasSuc);
     const cuerpo = document.getElementById('rwRankBody');
     const elegir = fila => {
       if (!fila) return;
@@ -4741,6 +4792,7 @@ async function loadRRData() {
     rwRenderUsuarios();
     rwRenderZonas();
     rwRenderRanking();
+    rwRenderEncuestasSuc();
     rwRenderEncuestas();
   }
   
@@ -4870,6 +4922,74 @@ async function loadRRData() {
     return `<td class="${bajo ? 'rw-low' : ''}" ${bajo ? 'title="Muestra chica"' : ''}>${txt}<small style="color:#999;margin-left:4px;">n=${rwFmt(n)}</small></td>`;
   }
   
+  // Promedio ponderado por n a partir de las filas mensuales.
+  function rwAgrEnc(filas) {
+    const a = { n: 0, at: [0, 0], ra: [0, 0], ca: [0, 0], eq: [0, 0], vo: [0, 0] };
+    filas.forEach(r => {
+      a.n += r.n;
+      [['at', 'atN'], ['ra', 'raN'], ['ca', 'caN'], ['eq', 'eqN'], ['vo', 'voN']].forEach(([k, kn]) => {
+        if (r[k] !== null && r[k] !== undefined && r[k] !== '' && r[kn]) { a[k][0] += Number(r[k]) * r[kn]; a[k][1] += r[kn]; }
+      });
+    });
+    const f = k => a[k][1] ? a[k][0] / a[k][1] : null;
+    return { n: a.n, at: f('at'), atN: a.at[1], ra: f('ra'), raN: a.ra[1], ca: f('ca'), caN: a.ca[1],
+             eq: f('eq'), eqN: a.eq[1], vo: f('vo'), voN: a.vo[1] };
+  }
+
+  function rwCeldaEncAl(valor, n, esNota) {
+    if (valor === null || valor === undefined || !n) return '<td style="color:#ccc;">—</td>';
+    const txt = esNota ? Number(valor).toFixed(2) : (Number(valor) * 100).toFixed(1) + '%';
+    const alerta = esNota && Number(valor) < 4 && n >= 5;
+    const bajo = n < RW_MUESTRA_MIN;
+    const cls = alerta ? 'rw-alerta' : (bajo ? 'rw-low' : '');
+    return `<td class="${cls}" ${bajo ? 'title="Muestra chica"' : ''}>${alerta ? '⚠ ' : ''}${txt}<small style="color:#999;margin-left:4px;font-weight:400;">n=${rwFmt(n)}</small></td>`;
+  }
+
+  function rwRenderEncuestasSuc() {
+    const tabla = document.getElementById('rwEncSucTabla');
+    const na = document.getElementById('rwEncNA');
+    const cuenta = document.getElementById('rwEncSucCount');
+    if (!rwEncSucOk) {
+      tabla.innerHTML = ''; cuenta.textContent = '';
+      // Respaldo: solo conteo de NA desde la tabla mensual global.
+      const tot = rwEncMes.reduce((s, e) => s + (e.sinSuc || 0), 0);
+      na.style.display = tot ? '' : 'none';
+      na.innerHTML = `<h3>Encuestas sin sucursal (NA)</h3><div class="rw-sub">${rwFmt(tot)} encuestas llegaron sin sucursal. Pendiente de aclarar con Aida.</div>`;
+      return;
+    }
+    const meses = [...new Set(rwEncSuc.map(r => r.mes))].sort();
+    const k = Number(document.getElementById('rwEncPeriodo').value) || 0;
+    const permitidos = new Set(k ? meses.slice(-k) : meses);
+    const enPeriodo = rwEncSuc.filter(r => permitidos.has(r.mes));
+
+    // Sucursales (respetan filtros de zona / sucursal)
+    const porSuc = {};
+    enPeriodo.filter(r => !r.na &&
+      (!rwFiltro.zona || r.zona === rwFiltro.zona) && (!rwFiltro.sucursal || r.nombre === rwFiltro.sucursal))
+      .forEach(r => { (porSuc[r.nombre] = porSuc[r.nombre] || { zona: r.zona, filas: [] }).filas.push(r); });
+    const filas = Object.keys(porSuc).map(n => Object.assign({ nombre: n, zona: porSuc[n].zona }, rwAgrEnc(porSuc[n].filas)))
+      .sort((a, b) => (a.at === null) - (b.at === null) || a.at - b.at || a.nombre.localeCompare(b.nombre, 'es'));
+    const cab = '<thead><tr><th>Sucursal</th><th>Zona</th><th>Encuestas</th><th>Atención (1–5)</th><th>Rapidez (1–5)</th><th>Comida caliente</th><th>Equipo pasó</th><th>Volvería</th></tr></thead>';
+    tabla.innerHTML = cab + '<tbody>' + (filas.length ? filas.map(f =>
+      `<tr><td>${rwEsc(f.nombre)}</td><td>${rwEsc(f.zona)}</td><td>${rwFmt(f.n)}</td>` +
+      rwCeldaEncAl(f.at, f.atN, true) + rwCeldaEncAl(f.ra, f.raN, true) + rwCeldaEncAl(f.ca, f.caN, false) +
+      rwCeldaEncAl(f.eq, f.eqN, false) + rwCeldaEncAl(f.vo, f.voN, false) + '</tr>').join('')
+      : '<tr><td colspan="8" style="text-align:center;color:#999;padding:16px;">Sin encuestas en este período.</td></tr>') + '</tbody>';
+    const conAlerta = filas.filter(f => (f.at !== null && f.at < 4 && f.atN >= 5) || (f.ra !== null && f.ra < 4 && f.raN >= 5)).length;
+    cuenta.textContent = `${filas.length} sucursales · ${conAlerta} con calificación menor a 4`;
+
+    // Grupo aparte: encuestas sin sucursal (NA), independiente de zona/sucursal
+    const nas = enPeriodo.filter(r => r.na);
+    if (!nas.length) { na.style.display = 'none'; na.innerHTML = ''; return; }
+    const g = rwAgrEnc(nas);
+    na.style.display = '';
+    na.innerHTML = '<h3>Encuestas sin sucursal (NA)</h3>' +
+      '<div class="rw-sub" style="margin-bottom:8px;">Se agrupan aparte y no cuentan en la tabla de sucursales, hasta que Aida aclare por qué llegan así.</div>' +
+      '<div style="overflow-x:auto;"><table class="rw-table"><thead><tr><th>Grupo</th><th>Encuestas</th><th>Atención (1–5)</th><th>Rapidez (1–5)</th><th>Comida caliente</th><th>Equipo pasó</th><th>Volvería</th></tr></thead><tbody><tr>' +
+      `<td>Sin sucursal</td><td>${rwFmt(g.n)}</td>` + rwCeldaEncAl(g.at, g.atN, true) + rwCeldaEncAl(g.ra, g.raN, true) +
+      rwCeldaEncAl(g.ca, g.caN, false) + rwCeldaEncAl(g.eq, g.eqN, false) + rwCeldaEncAl(g.vo, g.voN, false) + '</tr></tbody></table></div>';
+  }
+
   function rwRenderEncuestas() {
     const cab = '<thead><tr><th>Mes</th><th>Encuestas</th><th>Equipo pasó</th><th>Volvería</th><th>Atención (1–5)</th><th>Rapidez (1–5)</th><th>Comida caliente</th></tr></thead>';
     const filas = rwEncMes.map(e => `<tr><td>${rwMesLabel(e.mes)}</td><td>${rwFmt(e.n)}</td>` +
