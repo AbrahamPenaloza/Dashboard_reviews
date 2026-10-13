@@ -367,7 +367,7 @@
   .main-tab-panel { display: none; }
   .main-tab-panel.active { display: block; }
 
-  /* --- Gráficas de Quejas Redes Sociales --- */
+  /* --- Gráficas de Redes Sociales --- */
   .chart-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -464,13 +464,76 @@
   </div>
 
   <div class="main-tabs">
-    <button class="main-tab-btn active" onclick="cambiarTabPrincipal('resenas', this)">📍 Reseñas</button>
-    <button class="main-tab-btn" onclick="cambiarTabPrincipal('quejas-redes', this)">📱 Quejas Redes Sociales</button>
+    <button class="main-tab-btn active" onclick="cambiarTabPrincipal('seguimiento', this)">🎯 Seguimiento de Quejas</button>
+    <button class="main-tab-btn" onclick="cambiarTabPrincipal('resenas', this)">📍 Reseñas Google</button>
+    <button class="main-tab-btn" onclick="cambiarTabPrincipal('quejas-redes', this)">📱 Redes Sociales</button>
     <button class="main-tab-btn" onclick="cambiarTabPrincipal('rr', this)">🎯 R+R</button>
     <button class="main-tab-btn" onclick="cambiarTabPrincipal('rewards', this)">🎁 Rebel Rewards</button>
   </div>
 
-  <div id="tab-resenas" class="main-tab-panel active">
+  <div id="tab-seguimiento" class="main-tab-panel active">
+
+  <div class="section">
+    <h2>🎯 Seguimiento de Quejas</h2>
+    <div class="resp-kpi-grid">
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value pendiente" id="seguKpiActivas">--</div>
+        <div class="resp-kpi-label">Quejas activas</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value aprobada" id="seguKpiCerradas">--</div>
+        <div class="resp-kpi-label">Cerradas</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value" style="color:#e63946;" id="seguKpiSinAtender">--</div>
+        <div class="resp-kpi-label">Sin atender +1 día</div>
+      </div>
+      <div class="resp-kpi-card">
+        <div class="resp-kpi-value publicada" id="seguKpiTiempoProm">--</div>
+        <div class="resp-kpi-label">Días prom. resolución (redes)</div>
+      </div>
+    </div>
+
+    <div id="seguRanking" style="margin-bottom:24px;"></div>
+
+    <div class="controls" style="margin-bottom: 20px;">
+      <div class="control-group">
+        <label for="seguEstatusFilter">Estatus:</label>
+        <select id="seguEstatusFilter">
+          <option value="">Todos</option>
+          <option value="Nueva">Nueva</option>
+          <option value="En Proceso">En Proceso</option>
+          <option value="Esperando respuesta del cliente">Esperando respuesta del cliente</option>
+          <option value="Cerrada">Cerrada</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="seguZonaFilter">Zona:</label>
+        <select id="seguZonaFilter">
+          <option value="">Todas las zonas</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="seguCanalFilter">Canal:</label>
+        <select id="seguCanalFilter">
+          <option value="">Todos los canales</option>
+          <option value="Facebook">Facebook</option>
+          <option value="Instagram">Instagram</option>
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:12px; color:#999; margin-top:-8px; margin-bottom:16px;">
+      Esta sección solo incluye quejas de redes sociales/WhatsApp — las reseñas de Google se gestionan aparte en 📮 Respuestas a Reseñas (pestaña Reseñas Google), ya que ahí se espera contacto del cliente vía folio.
+    </p>
+    <div id="seguList">
+      <div class="placeholder">Cargando quejas…</div>
+    </div>
+  </div>
+  </div> <!-- /tab-seguimiento -->
+
+  <div id="tab-resenas" class="main-tab-panel">
   <div class="controls">
     <div class="control-group">
       <label for="period">Período:</label>
@@ -634,11 +697,11 @@
   </div>
   
   <div class="section">
-    <h2>👥 Rendimiento por Zona/Gerente</h2>
+    <h2>👥 Rendimiento por Zona</h2>
     <div class="controls" style="margin-bottom: 16px;">
       <div class="control-group">
-        <label for="period_manager">Período:</label>
-        <select id="period_manager" class="section-period">
+        <label for="period_zona">Período:</label>
+        <select id="period_zona" class="section-period">
           <option value="all">Todo el tiempo</option>
           <option value="year">Últimos 365 días</option>
           <option value="quarter">Últimos 90 días</option>
@@ -646,20 +709,20 @@
           <option value="custom">Personalizado…</option>
         </select>
       </div>
-      <div class="control-group section-custom-range" id="customRangeGroup_manager" style="display:none;">
-        <label for="customStart_manager">Del:</label>
-        <input type="date" id="customStart_manager">
-        <label for="customEnd_manager">Al:</label>
-        <input type="date" id="customEnd_manager">
+      <div class="control-group section-custom-range" id="customRangeGroup_zona" style="display:none;">
+        <label for="customStart_zona">Del:</label>
+        <input type="date" id="customStart_zona">
+        <label for="customEnd_zona">Al:</label>
+        <input type="date" id="customEnd_zona">
       </div>
     </div>
     <div class="chart-container">
-      <canvas id="managerChart" role="img" aria-label="Porcentaje de reseñas negativas por zona o gerente regional"></canvas>
+      <canvas id="zonaChart" role="img" aria-label="Porcentaje de reseñas negativas por zona"></canvas>
     </div>
     <p style="font-size:13px; color:#8a8d99; margin-top:24px; margin-bottom:4px;">
-      Desglose por gerente: reparto de reseñas negativas entre sus sucursales, con comentario ejecutivo de áreas de oportunidad.
+      Desglose por zona: reparto de reseñas negativas entre sus sucursales, con comentario ejecutivo de áreas de oportunidad.
     </p>
-    <div id="managerZoneGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:20px; margin-top:12px;"></div>
+    <div id="zonaGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:20px; margin-top:12px;"></div>
   </div>
   
   <div class="section">
@@ -677,9 +740,9 @@
         <select id="quejasMesFilter"></select>
       </div>
       <div class="control-group">
-        <label for="quejasGerenteFilter">Gerente Regional:</label>
-        <select id="quejasGerenteFilter">
-          <option value="">Todos los gerentes (visión general)</option>
+        <label for="quejasZonaFilter">Zona:</label>
+        <select id="quejasZonaFilter">
+          <option value="">Todas las zonas (visión general)</option>
         </select>
       </div>
       <div class="control-group">
@@ -764,9 +827,9 @@
         </select>
       </div>
       <div class="control-group">
-        <label for="respGerenteFilter">Zona/Gerente:</label>
-        <select id="respGerenteFilter">
-          <option value="">Todos los gerentes</option>
+        <label for="respZonaFilter">Zona:</label>
+        <select id="respZonaFilter">
+          <option value="">Todas las zonas</option>
         </select>
       </div>
     </div>
@@ -817,9 +880,9 @@
         <div class="chart-insight" id="insightPorCategoria"></div>
       </div>
       <div class="chart-card">
-        <h3>Volumen y resolución por gerente</h3>
-        <canvas id="chartPorGerente" height="220"></canvas>
-        <div class="chart-insight" id="insightPorGerente"></div>
+        <h3>Volumen y resolución por zona</h3>
+        <canvas id="chartPorZona" height="220"></canvas>
+        <div class="chart-insight" id="insightPorZona"></div>
       </div>
       <div class="chart-card" style="grid-column: 1 / -1;">
         <h3>Quejas por sucursal — tendencia</h3>
@@ -847,64 +910,6 @@
     <div id="contactoResultado"></div>
   </div>
 
-  <div class="section">
-    <h2>🎯 Seguimiento de Quejas</h2>
-    <div class="resp-kpi-grid">
-      <div class="resp-kpi-card">
-        <div class="resp-kpi-value pendiente" id="seguKpiActivas">--</div>
-        <div class="resp-kpi-label">Quejas activas</div>
-      </div>
-      <div class="resp-kpi-card">
-        <div class="resp-kpi-value aprobada" id="seguKpiCerradas">--</div>
-        <div class="resp-kpi-label">Cerradas</div>
-      </div>
-      <div class="resp-kpi-card">
-        <div class="resp-kpi-value" style="color:#e63946;" id="seguKpiSinAtender">--</div>
-        <div class="resp-kpi-label">Sin atender +1 día</div>
-      </div>
-      <div class="resp-kpi-card">
-        <div class="resp-kpi-value publicada" id="seguKpiTiempoProm">--</div>
-        <div class="resp-kpi-label">Días prom. resolución (redes)</div>
-      </div>
-    </div>
-
-    <div id="seguRanking" style="margin-bottom:24px;"></div>
-
-    <div class="controls" style="margin-bottom: 20px;">
-      <div class="control-group">
-        <label for="seguEstatusFilter">Estatus:</label>
-        <select id="seguEstatusFilter">
-          <option value="">Todos</option>
-          <option value="Nueva">Nueva</option>
-          <option value="En Proceso">En Proceso</option>
-          <option value="Esperando respuesta del cliente">Esperando respuesta del cliente</option>
-          <option value="Cerrada">Cerrada</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label for="seguGerenteFilter">Zona/Gerente:</label>
-        <select id="seguGerenteFilter">
-          <option value="">Todos los gerentes</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label for="seguCanalFilter">Canal:</label>
-        <select id="seguCanalFilter">
-          <option value="">Todos los canales</option>
-          <option value="Facebook">Facebook</option>
-          <option value="Instagram">Instagram</option>
-          <option value="WhatsApp">WhatsApp</option>
-          <option value="Otro">Otro</option>
-        </select>
-      </div>
-    </div>
-    <p style="font-size:12px; color:#999; margin-top:-8px; margin-bottom:16px;">
-      Esta sección solo incluye quejas de redes sociales/WhatsApp — las reseñas de Google se gestionan aparte en 📮 Respuestas a Reseñas (pestaña Reseñas), ya que ahí se espera contacto del cliente vía folio.
-    </p>
-    <div id="seguList">
-      <div class="placeholder">Cargando quejas…</div>
-    </div>
-  </div>
   </div> <!-- /tab-quejas-redes -->
 
   <div id="tab-rr" class="main-tab-panel">
@@ -1122,7 +1127,7 @@
 </div>
 
 <script>
-  // Cambia entre las pestañas principales (Reseñas / Quejas Redes Sociales).
+  // Cambia entre las pestañas principales (Reseñas / Redes Sociales).
   // Las gráficas de Chart.js en la pestaña oculta al cargar la página se
   // renderizan igual (canvas con display:none sigue teniendo dimensiones
   // en el momento del primer render aquí, porque .main-tab-panel usa
@@ -1509,7 +1514,7 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
 let rrPorSucursalChartInstance = null;
 
 // Popula el dropdown una sola vez (igual que populateSucursalTendenciaFilter
-// en Quejas Redes Sociales) y dibuja/redibuja la gráfica de líneas por
+// en Redes Sociales) y dibuja/redibuja la gráfica de líneas por
 // sucursal, resaltando la seleccionada y atenuando el resto.
 function renderRRPorSucursal(volumenPorSucursal) {
   const select = document.getElementById('rrSucursalFilter');
@@ -1756,7 +1761,7 @@ function calcularVolumenDiarioRR() {
 // Construye el conteo DIARIO de reseñas nuevas por SUCURSAL individual
 // (las 52, piloto + control), desde el snapshot hasta hoy. Es la base
 // de la gráfica de líneas con dropdown, mismo patrón que
-// renderChartPorSucursal en Quejas Redes Sociales.
+// renderChartPorSucursal en Redes Sociales.
 function calcularVolumenDiarioPorSucursalRR() {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -1829,7 +1834,7 @@ async function loadRRData() {
   let quejasCortes = []; // [{ label, date, sucursales: { nombre: {rating, total, r1, r2} } }]
   let quejasChart = null;
   let themesChart = null;
-  let managerChart = null;
+  let zonaChart = null;
   
   function parseFecha(value) {
     if (!value) return null;
@@ -1884,7 +1889,7 @@ async function loadRRData() {
       updateDashboard();
       updateTopSection();
       updateThemeSection();
-      updateManagerSection();
+      updateZonaSection();
       populateReviewLocationFilter();
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -1988,7 +1993,7 @@ async function loadRRData() {
     // Generar la lista de cortes mes a mes desde el primer mes con datos hasta hoy.
     // Corte calendario puro para todo el histórico (fin de mes, o "hoy" si es el
     // mes en curso). Antes existía un corte "día 7" para meses <= julio 2026, para
-    // alinear con la bitácora manual de Carlos durante la transición; ya no aplica
+    // alinear con la bitácora manual durante la transición; ya no aplica
     // porque los datos vienen directo de Google y la bitácora dejó de ser la
     // referencia. Se recalculó todo el histórico a corte calendario para que la
     // serie sea consistente de punta a punta (sin el "mes costal" que absorbía
@@ -2063,10 +2068,10 @@ async function loadRRData() {
     // Mapeo sucursal -> zona, construido a partir de "Métricas" (allData),
     // que sí trae ese campo por fila. La hoja "Reseñas" (reviewsData, base de este
     // módulo) no lo trae, así que se cruza por nombre de sucursal.
-    // CAMBIO (28 ago 2026): antes leía 'Zona/Gerente' (mezclaba zona y persona,
-    // y con Román rompía distinguir Querétaro-Norte de Querétaro-Sur). Ahora lee
+    // CAMBIO (28 ago 2026): antes leía una columna mixta de zona y persona,
+    // y no permitía distinguir Querétaro-Norte de Querétaro-Sur). Ahora lee
     // la columna nueva 'Zona' (identificador estable), poblada por la migración
-    // Migracion_Zona_Gerente.gs. Como todos los filtros/charts de este módulo
+    // la migración de zonas. Como todos los filtros/charts de este módulo
     // leen de window._quejasMapaZona, este es el único punto que hay que tocar.
     const mapaZona = {};
     allData.forEach(row => {
@@ -2074,14 +2079,14 @@ async function loadRRData() {
     });
     window._quejasMapaZona = mapaZona; // reutilizado por updateQuejasModule y populateQuejasSucursalFilter
     
-    const gerenteSelect = document.getElementById('quejasGerenteFilter');
-    const gerentesUnicos = [...new Set(Object.values(mapaZona))].sort();
-    gerenteSelect.innerHTML = '<option value="">Todos los gerentes (visión general)</option>' +
-      gerentesUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
-    gerenteSelect.addEventListener('change', () => {
-      // Al cambiar de gerente, se reinicia el filtro de sucursal (puede que la
-      // sucursal antes seleccionada ya no pertenezca al gerente nuevo) y se
-      // re-puebla con solo las sucursales de ese gerente.
+    const zonaSelect = document.getElementById('quejasZonaFilter');
+    const zonasUnicos = [...new Set(Object.values(mapaZona))].sort();
+    zonaSelect.innerHTML = '<option value="">Todas las zonas (visión general)</option>' +
+      zonasUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
+    zonaSelect.addEventListener('change', () => {
+      // Al cambiar de zona, se reinicia el filtro de sucursal (puede que la
+      // sucursal antes seleccionada ya no pertenezca al zona nuevo) y se
+      // re-puebla con solo las sucursales de ese zona.
       document.getElementById('quejasYoYSucursal').value = '';
       populateQuejasSucursalFilter();
       updateQuejasModule();
@@ -2090,20 +2095,20 @@ async function loadRRData() {
     populateQuejasSucursalFilter();
   }
   
-  // Puebla "Comparativo por" (sucursal) según el Gerente Regional elegido: si hay
-  // gerente seleccionado, solo se listan sus sucursales -así la combinación de
+  // Puebla "Comparativo por" (sucursal) según la zona elegida: si hay
+  // zona seleccionado, solo se listan sus sucursales -así la combinación de
   // ambos filtros siempre tiene sentido (no se puede elegir una sucursal ajena
-  // al gerente ya filtrado).
+  // al zona ya filtrado).
   function populateQuejasSucursalFilter() {
-    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const zonaFiltro = document.getElementById('quejasZonaFilter').value;
     const mapaZona = window._quejasMapaZona || {};
     
     const sucursalSelect = document.getElementById('quejasYoYSucursal');
     const nombresUnicos = new Set();
     quejasCortes.forEach(c => Object.keys(c.sucursales).forEach(n => nombresUnicos.add(n)));
     let nombresOrdenados = [...nombresUnicos].sort();
-    if (gerenteFiltro) {
-      nombresOrdenados = nombresOrdenados.filter(n => mapaZona[n] === gerenteFiltro);
+    if (zonaFiltro) {
+      nombresOrdenados = nombresOrdenados.filter(n => mapaZona[n] === zonaFiltro);
     }
     sucursalSelect.innerHTML = '<option value="">Todas las sucursales (visión general)</option>' +
       nombresOrdenados.map(n => `<option value="${n}">${n}</option>`).join('');
@@ -2116,18 +2121,18 @@ async function loadRRData() {
     const anterior = quejasCortes[idx - 1]; // corte inmediato previo, para el neto mensual
     if (!actual) return;
     
-    // Filtro de Gerente Regional: acota TODO el módulo (Top 5, YoY, tendencia) al
-    // conjunto de sucursales de ese gerente. Se combina con el filtro de sucursal
+    // Filtro de Zona: acota TODO el módulo (Top 5, YoY, tendencia) al
+    // conjunto de sucursales de ese zona. Se combina con el filtro de sucursal
     // individual ("Comparativo por"), que ya viene restringido a las sucursales
-    // de ese gerente por populateQuejasSucursalFilter.
-    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    // de ese zona por populateQuejasSucursalFilter.
+    const zonaFiltro = document.getElementById('quejasZonaFilter').value;
     const mapaZona = window._quejasMapaZona || {};
-    const perteneceAGerente = (nombre) => !gerenteFiltro || mapaZona[nombre] === gerenteFiltro;
+    const perteneceAZona = (nombre) => !zonaFiltro || mapaZona[nombre] === zonaFiltro;
     
     // Neto mensual = total acumulado del corte actual - total acumulado del corte anterior
     // Igual para 1★ y 2★ (para saber cuántas quejas NUEVAS de 1-2 estrellas hubo)
     const netos = Object.entries(actual.sucursales)
-      .filter(([nombre]) => perteneceAGerente(nombre))
+      .filter(([nombre]) => perteneceAZona(nombre))
       .map(([nombre, datos]) => {
         const prev = anterior ? anterior.sucursales[nombre] : null;
         const negActual = (datos.r1 || 0) + (datos.r2 || 0);
@@ -2156,14 +2161,14 @@ async function loadRRData() {
       // Para el corte actual ya tenemos `netos` (arriba). Necesitamos el mismo cálculo
       // para el corte del año anterior, usando SU propio corte previo inmediato.
       // Si se pasa `sucursalFiltro`, solo se suma esa sucursal en vez del total del grupo.
-      // Si hay `gerenteFiltro` activo (closure de arriba), también se acota a ese gerente.
+      // Si hay `zonaFiltro` activo (closure de arriba), también se acota a ese zona.
       const netoDeCorte = (corte, sucursalFiltro) => {
         const idxCorte = quejasCortes.indexOf(corte);
         const prevCorte = quejasCortes[idxCorte - 1];
         let entradas = sucursalFiltro
           ? Object.entries(corte.sucursales).filter(([nombre]) => nombre === sucursalFiltro)
           : Object.entries(corte.sucursales);
-        entradas = entradas.filter(([nombre]) => perteneceAGerente(nombre));
+        entradas = entradas.filter(([nombre]) => perteneceAZona(nombre));
         return entradas.reduce((sum, [nombre, datos]) => {
           const negActual = (datos.r1 || 0) + (datos.r2 || 0);
           const prevDatos = prevCorte ? prevCorte.sucursales[nombre] : null;
@@ -2174,7 +2179,7 @@ async function loadRRData() {
       };
       
       const sucursalSeleccionada = document.getElementById('quejasYoYSucursal').value;
-      const etiquetaFiltro = sucursalSeleccionada || (gerenteFiltro ? `sucursales de ${gerenteFiltro}` : '');
+      const etiquetaFiltro = sucursalSeleccionada || (zonaFiltro ? `sucursales de ${zonaFiltro}` : '');
       document.getElementById('quejasYoYSubtitle').textContent = etiquetaFiltro
         ? `Comparativo de ${etiquetaFiltro} contra el mismo mes del año pasado`
         : 'Comparativo del corte seleccionado contra el mismo mes del año pasado (todas las sucursales)';
@@ -2213,14 +2218,14 @@ async function loadRRData() {
     // corte anterior es de 2019), para no perder precisión en el primer punto.
     const cortesVisibles = quejasCortes.filter(c => c.date.getFullYear() >= 2020);
     const sucursalFiltro = document.getElementById('quejasYoYSucursal').value;
-    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const zonaFiltro = document.getElementById('quejasZonaFilter').value;
     const mapaZona = window._quejasMapaZona || {};
     
     const sumaNeg = (sucursalesObj) => {
       let entradas = sucursalFiltro
         ? Object.entries(sucursalesObj).filter(([nombre]) => nombre === sucursalFiltro)
         : Object.entries(sucursalesObj);
-      if (gerenteFiltro) entradas = entradas.filter(([nombre]) => mapaZona[nombre] === gerenteFiltro);
+      if (zonaFiltro) entradas = entradas.filter(([nombre]) => mapaZona[nombre] === zonaFiltro);
       return entradas.reduce((s, [, d]) => s + (d.r1 || 0) + (d.r2 || 0), 0);
     };
     
@@ -2236,7 +2241,7 @@ async function loadRRData() {
     
     if (quejasChart) quejasChart.destroy();
     const ctx = document.getElementById('quejasTrendChart').getContext('2d');
-    const partesEtiqueta = [sucursalFiltro, gerenteFiltro].filter(Boolean);
+    const partesEtiqueta = [sucursalFiltro, zonaFiltro].filter(Boolean);
     const labelSerie = partesEtiqueta.length
       ? `Reseñas 1-2⭐ nuevas por corte (${partesEtiqueta.join(' — ')})`
       : 'Reseñas 1-2⭐ nuevas por corte (todo el grupo)';
@@ -2263,7 +2268,7 @@ async function loadRRData() {
     });
   }
   
-  // Todas estas funciones aceptan un `suffix` opcional (ej. '_top', '_theme', '_manager')
+  // Todas estas funciones aceptan un `suffix` opcional (ej. '_top', '_theme', '_zona')
   // para leer de un selector de sección independiente en vez del filtro global.
   // Sin suffix, se comportan exactamente igual que antes (filtro global de arriba).
   function getStartDate(suffix = '') {
@@ -2418,7 +2423,7 @@ async function loadRRData() {
   }
   
   // Cada una de estas 3 secciones ahora tiene su propio selector de periodo
-  // independiente (sufijos _top, _theme, _manager), en vez de depender del
+  // independiente (sufijos _top, _theme, _zona), en vez de depender del
   // filtro global de arriba.
   function updateTopSection() {
     updateTopLocations(getFilteredData('_top'));
@@ -2430,13 +2435,13 @@ async function loadRRData() {
     updateThemeFilter(filtered);
   }
   
-  function updateManagerSection() {
-    const data = getFilteredData('_manager');
-    updateManagerChart(data);
-    updateManagerZoneGrid(data);
+  function updateZonaSection() {
+    const data = getFilteredData('_zona');
+    updateZonaChart(data);
+    updateZonaGrid(data);
   }
   
-  function updateManagerChart(data) {
+  function updateZonaChart(data) {
     const byZone = {};
     data.forEach(row => {
       const zone = row['Zona'] || 'Sin asignar';
@@ -2453,14 +2458,14 @@ async function loadRRData() {
       }))
       .sort((a, b) => b.percent - a.percent);
     
-    const ctx = document.getElementById('managerChart');
-    if (managerChart) managerChart.destroy();
+    const ctx = document.getElementById('zonaChart');
+    if (zonaChart) zonaChart.destroy();
     
-    managerChart = new Chart(ctx, {
+    zonaChart = new Chart(ctx, {
       type: 'bar',
       data: {
-        // Total junto al nombre del gerente/zona, para no perder contexto de
-        // volumen al ver solo el % agregado (ej. "Israel (1,240)").
+        // Total junto al nombre de la zona, para no perder contexto de
+        // volumen al ver solo el % agregado (ej. "CDMX-Norte (1,240)").
         labels: sorted.map(d => `${d.name} (${d.total.toLocaleString('es-MX')})`),
         datasets: [{
           label: '% Reseñas negativas',
@@ -2484,8 +2489,8 @@ async function loadRRData() {
   // Paleta fija por zona: mismo color siempre para la misma zona, sin
   // importar cuántas zonas distintas aparezcan en el periodo filtrado. Si aparece
   // una zona nueva no listada aquí, cae en el color de reserva al final.
-  // CAMBIO (30 ago 2026): antes las llaves eran nombres de gerente ('Israel',
-  // 'Edith'...), que ya no coinciden con row['Zona'] tras el refactor — por
+  // CAMBIO (30 ago 2026): antes las llaves eran nombres de personas,
+  // que ya no coinciden con row['Zona'] tras el refactor — por
   // eso todas las zonas caían en COLOR_RESERVA (se veían iguales). Ahora las
   // llaves son los 7 nombres de zona reales.
   const COLOR_POR_ZONA = {
@@ -2509,7 +2514,7 @@ async function loadRRData() {
     return colorBase + Math.round(opacidad * 255).toString(16).padStart(2, '0');
   }
   
-  const managerZoneCharts = {}; // un Chart por zona, para poder destruir/recrear al refiltrar
+  const zonaGridCharts = {}; // un Chart por zona, para poder destruir/recrear al refiltrar
   
   // Umbral desde el cual una sucursal se marca como área de oportunidad en el
   // comentario ejecutivo. Mismo criterio de "crítico" usado en otras partes del
@@ -2544,7 +2549,7 @@ async function loadRRData() {
     return frase;
   }
   
-  function updateManagerZoneGrid(data) {
+  function updateZonaGrid(data) {
     const byZone = {};
     data.forEach(row => {
       const zone = row['Zona'] || 'Sin asignar';
@@ -2557,11 +2562,11 @@ async function loadRRData() {
     });
     
     const zonas = Object.keys(byZone).sort();
-    const grid = document.getElementById('managerZoneGrid');
+    const grid = document.getElementById('zonaGrid');
     
     // Limpiar charts previos antes de reconstruir el grid
-    Object.values(managerZoneCharts).forEach(c => c.destroy());
-    Object.keys(managerZoneCharts).forEach(k => delete managerZoneCharts[k]);
+    Object.values(zonaGridCharts).forEach(c => c.destroy());
+    Object.keys(zonaGridCharts).forEach(k => delete zonaGridCharts[k]);
     
     grid.innerHTML = zonas.map(zona => `
       <div style="border:1px solid #eee; border-radius:10px; padding:16px; background:#fff;">
@@ -2593,10 +2598,10 @@ async function loadRRData() {
       
       // El donut reparte la proporción de NEGATIVAS por sucursal dentro de la
       // zona (no el % individual de cada una) -así se ve de un vistazo qué
-      // sucursal aporta más quejas al total del gerente.
+      // sucursal aporta más quejas al total del zona.
       const conNegativas = sucursales.filter(s => s.neg > 0);
       
-      managerZoneCharts[zona] = new Chart(ctx, {
+      zonaGridCharts[zona] = new Chart(ctx, {
         type: 'doughnut',
         data: {
           labels: conNegativas.map(s => `${s.name} (${s.percent.toFixed(0)}%)`),
@@ -2763,13 +2768,13 @@ async function loadRRData() {
     const anterior = quejasCortes[idx - 1];
     if (!actual) return null;
     
-    // Mismo filtro de Gerente Regional que el resto del módulo, para que el
+    // Mismo filtro de Zona que el resto del módulo, para que el
     // resumen ejecutivo no reporte un total distinto al que se ve en pantalla.
-    const gerenteFiltro = document.getElementById('quejasGerenteFilter').value;
+    const zonaFiltro = document.getElementById('quejasZonaFilter').value;
     const mapaZona = window._quejasMapaZona || {};
     
     const netos = Object.entries(actual.sucursales)
-      .filter(([nombre]) => !gerenteFiltro || mapaZona[nombre] === gerenteFiltro)
+      .filter(([nombre]) => !zonaFiltro || mapaZona[nombre] === zonaFiltro)
       .map(([nombre, datos]) => {
         const prev = anterior ? anterior.sucursales[nombre] : null;
         const negActual = (datos.r1 || 0) + (datos.r2 || 0);
@@ -2783,7 +2788,7 @@ async function loadRRData() {
     
     return {
       mesCorte: actual.label,
-      gerenteFiltro,
+      zonaFiltro,
       totalQuejasMes,
       focoRojo
     };
@@ -2964,7 +2969,7 @@ async function loadRRData() {
   // función de refresco. Se usa tanto para el filtro global como para los 3
   // filtros de sección independientes.
   //
-  // Interconectados: cambiar CUALQUIERA de los 4 (global, _top, _theme, _manager)
+  // Interconectados: cambiar CUALQUIERA de los 4 (global, _top, _theme, _zona)
   // sincroniza el mismo valor de periodo (y rango personalizado, si aplica) en los
   // otros 3, y refresca las 4 secciones. Cada selector se mantiene visible por
   // separado -no se ocultan ni se fusionan en uno solo- así que si más adelante
@@ -2973,12 +2978,12 @@ async function loadRRData() {
   // incluye "Mes de corte" de Quejas Generales (quejasMesFilter): ese filtro es
   // de naturaleza distinta (mes de corte puntual, no rango de días) y se deja
   // independiente a propósito.
-  const TODOS_LOS_SUFIJOS = ['', '_top', '_theme', '_manager'];
+  const TODOS_LOS_SUFIJOS = ['', '_top', '_theme', '_zona'];
   const REFRESH_POR_SUFIJO = {
     '': () => updateDashboard(),
     '_top': () => updateTopSection(),
     '_theme': () => updateThemeSection(),
-    '_manager': () => updateManagerSection()
+    '_zona': () => updateZonaSection()
   };
   let sincronizandoPeriodo = false; // evita loops de eventos al propagar el cambio
   
@@ -3034,9 +3039,9 @@ async function loadRRData() {
   wirePeriodSelector('', updateDashboard);
   wirePeriodSelector('_top', updateTopSection);
   wirePeriodSelector('_theme', updateThemeSection);
-  wirePeriodSelector('_manager', updateManagerSection);
+  wirePeriodSelector('_zona', updateZonaSection);
 
-  // Selector de periodo de "Quejas Redes Sociales": deliberadamente
+  // Selector de periodo de "Redes Sociales": deliberadamente
   // independiente del resto (no pasa por sincronizarPeriodoDesde ni por
   // TODOS_LOS_SUFIJOS) — decisión de Abraham de que este periodo no
   // afecte ni sea afectado por los filtros de la pestaña Reseñas.
@@ -3151,13 +3156,13 @@ async function loadRRData() {
     return reviewsData.filter(r => (r['Respuesta_Sugerida'] || '').toString().trim() !== '');
   }
 
-  function populateRespGerenteFilter() {
+  function populateRespZonaFilter() {
     const mapaZona = window._quejasMapaZona || {};
-    const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
-    const select = document.getElementById('respGerenteFilter');
+    const zonasUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
+    const select = document.getElementById('respZonaFilter');
     const valorPrevio = select.value;
-    select.innerHTML = '<option value="">Todos los gerentes</option>' +
-      gerentesUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
+    select.innerHTML = '<option value="">Todas las zonas</option>' +
+      zonasUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
     select.value = valorPrevio || '';
   }
 
@@ -3172,13 +3177,13 @@ async function loadRRData() {
 
   function renderRespuestas() {
     const estadoFiltro = document.getElementById('respEstadoFilter').value;
-    const gerenteFiltro = document.getElementById('respGerenteFilter').value;
+    const zonaFiltro = document.getElementById('respZonaFilter').value;
     const mapaZona = window._quejasMapaZona || {};
     const container = document.getElementById('respList');
 
     let filtered = getRespuestasConSugerencia();
     if (estadoFiltro) filtered = filtered.filter(r => clasificarEstadoRespuesta(r) === estadoFiltro);
-    if (gerenteFiltro) filtered = filtered.filter(r => mapaZona[r['Nombre de sucursal']] === gerenteFiltro);
+    if (zonaFiltro) filtered = filtered.filter(r => mapaZona[r['Nombre de sucursal']] === zonaFiltro);
 
     filtered.sort((a, b) => (parseFecha(b.Fecha) || 0) - (parseFecha(a.Fecha) || 0));
 
@@ -3308,13 +3313,13 @@ async function loadRRData() {
   }
 
   function updateRespSection() {
-    populateRespGerenteFilter();
+    populateRespZonaFilter();
     updateRespKpis();
     renderRespuestas();
   }
 
   document.getElementById('respEstadoFilter').addEventListener('change', renderRespuestas);
-  document.getElementById('respGerenteFilter').addEventListener('change', renderRespuestas);
+  document.getElementById('respZonaFilter').addEventListener('change', renderRespuestas);
   
   // Genera el resumen ejecutivo con plantillas de texto fijas, sin llamar a
   // ninguna API externa (sin costo, respuesta instantánea). Toma los mismos
@@ -3375,7 +3380,7 @@ async function loadRRData() {
   
   function redactarResumenQuejas(h) {
     if (!h) return null;
-    const ambito = h.gerenteFiltro ? `en la zona de ${h.gerenteFiltro}` : 'en todo el grupo';
+    const ambito = h.zonaFiltro ? `en la zona de ${h.zonaFiltro}` : 'en todo el grupo';
     const frases = [`En el corte de ${h.mesCorte}, se registraron ${h.totalQuejasMes} quejas nuevas de 1-2 estrellas ${ambito}.`];
     
     if (h.focoRojo.length > 0) {
@@ -3416,7 +3421,7 @@ async function loadRRData() {
   // (folios con sufijo "-M").
   //
   // Roles y permisos (definidos con Abraham): el dashboard es público y
-  // visible para todos (sucursal, supervisor, gerente, dirección) sin
+  // visible para todos (sucursal, supervisor, dirección) sin
   // restricción de zona — a propósito, porque casos como sucursales mal
   // referidas por el cliente ("Félix Cuevas" mencionado como "Armand")
   // se resuelven mejor con visibilidad cruzada entre sucursales. Sin
@@ -3426,28 +3431,13 @@ async function loadRRData() {
   // gestionar credenciales por persona.
   //   - Supervisor: Nueva -> En Proceso. Escribe su nombre + la acción
   //     a tomar (obligatoria) para resolver la queja.
-  //   - Gerente: En Proceso -> Cerrada (único rol que puede cerrar; se
-  //     identifica con un selector de los 6 gerentes, no nombre libre,
-  //     para que no se pueda fingir el rol). Escribe cómo se resolvió
-  //     / si la acción del supervisor fue correcta (obligatorio).
-  //     Calcula Tiempo_Resolución_Dias automáticamente.
+  //   - Cierre: En Proceso -> Cerrada. Quien cierra (supervisor o
+  //     encargado de escalamiento) escribe su nombre y cómo se resolvió
+  //     (obligatorio). Calcula Tiempo_Resolución_Dias automáticamente.
   //   Nota: una queja "Nueva" ya NO puede cerrarse directamente — debe
   //   pasar primero por "En Proceso", para forzar que quede registrada
   //   la acción del supervisor antes del cierre.
 
-  // CAMBIO (28 ago 2026): antes GERENTES_LISTA era un array fijo con los 6
-  // nombres de gerente hardcodeados — si cambiaba un gerente, este archivo
-  // había que editarlo a mano. Ahora se deriva dinámicamente de allData
-  // (columna "Gerente_Actual" de Sucursales, vía Métricas), igual que ya
-  // hace mapaZona con "Zona". Cambiar de gerente en el Sheet ya no requiere
-  // tocar el dashboard — de eso se trataba el refactor completo.
-  function obtenerGerentesListaActual() {
-    const gerentes = new Set();
-    allData.forEach(row => {
-      if (row['Gerente_Actual']) gerentes.add(row['Gerente_Actual']);
-    });
-    return [...gerentes].sort();
-  }
 
   function esQuejaDeRedes(canalOrigen) {
     // El tiempo de resolución solo aplica a canales con contacto directo
@@ -3469,7 +3459,7 @@ async function loadRRData() {
   // fines de reporte histórico siga diciendo Google Maps.
   //
   // Usar SOLO en las vistas operativas (Seguimiento de Quejas, ranking
-  // por gerente) — NO en las 4 gráficas de "Quejas Redes Sociales"
+  // por zona) — NO en las 4 gráficas de "Redes Sociales"
   // (getQuejasRedes, getQuejasRedesPorPeriodo, populateSucursalTendenciaFilter),
   // que a propósito solo cuentan Canal_Origen puro para no mezclar el
   // volumen de Google en esas proporciones.
@@ -3537,13 +3527,13 @@ async function loadRRData() {
     return map[estatus] || 'nueva';
   }
 
-  function populateSeguGerenteFilter() {
+  function populateSeguZonaFilter() {
     const mapaZona = window._quejasMapaZona || {};
-    const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
-    const select = document.getElementById('seguGerenteFilter');
+    const zonasUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean).sort();
+    const select = document.getElementById('seguZonaFilter');
     const valorPrevio = select.value;
-    select.innerHTML = '<option value="">Todos los gerentes</option>' +
-      gerentesUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
+    select.innerHTML = '<option value="">Todas las zonas</option>' +
+      zonasUnicos.map(g => `<option value="${g}">${g}</option>`).join('');
     select.value = valorPrevio || '';
   }
 
@@ -3560,11 +3550,11 @@ async function loadRRData() {
   function getQuejasSeguimiento() {
     // Excluye las quejas marcadas Excluir_Seguimiento="Sí" — el corte
     // limpio pedido por Abraham el 20 ago 2026 antes de activar el
-    // módulo con los gerentes: son casos ya resueltos manualmente antes
+    // módulo con los zonas: son casos ya resueltos manualmente antes
     // de que el sistema de seguimiento existiera, así que no deben
     // aparecer como pendientes ni contar en el ranking de nadie. Solo
-    // afecta esta función (Seguimiento operativo) y renderChartPorGerente/
-    // insightGerente — las demás gráficas de "Quejas Redes Sociales"
+    // afecta esta función (Seguimiento operativo) y renderChartPorZona/
+    // insightZona — las demás gráficas de "Redes Sociales"
     // siguen usando el histórico completo sin este filtro.
     return quejasData.filter(q => esQuejaDeRedesOperativa(q) && q['Excluir_Seguimiento'] !== 'Sí');
   }
@@ -3573,8 +3563,8 @@ async function loadRRData() {
   // de periodo independiente "_quejasredes". A propósito usa quejasData
   // directo (sin el filtro Excluir_Seguimiento de getQuejasSeguimiento):
   // estas gráficas deben conservar el histórico completo — solo
-  // renderChartPorGerente/insightGerente aplican esa exclusión por su
-  // cuenta, más abajo, para arrancar en cero con los gerentes.
+  // renderChartPorZona/insightZona aplican esa exclusión por su
+  // cuenta, más abajo, para arrancar en cero con los zonas.
   // Tampoco se usa esta versión para la sección 🎯 Seguimiento de Quejas
   // (KPIs, ranking, lista) — esa sección es la vista operativa de "qué
   // necesita atención hoy" y debe mostrar siempre el panorama completo,
@@ -3593,17 +3583,17 @@ async function loadRRData() {
     });
   }
 
-  // Fuente específica para "Volumen y resolución por gerente" (la única
+  // Fuente específica para "Volumen y resolución por zona" (la única
   // gráfica de este apartado que debe incluir TAMBIÉN las quejas
   // reactivadas desde Google vía contacto por redes, no solo las
   // nacidas en redes). Decisión de Abraham (24 ago 2026): esa gráfica
   // debe reflejar "todas las quejas con cliente contactado" bajo cada
-  // gerente, sea que hayan nacido en Facebook/Instagram/WhatsApp o que
+  // zona, sea que hayan nacido en Facebook/Instagram/WhatsApp o que
   // hayan sido reactivadas desde una reseña de Google — pero sigue
   // respetando el selector de periodo, a diferencia de Seguimiento
   // operativo (que siempre muestra el panorama completo actual), para
-  // poder comparar el desempeño de un gerente entre distintos periodos.
-  function getQuejasGerentePorPeriodo() {
+  // poder comparar el desempeño de un zona entre distintos periodos.
+  function getQuejasZonaPorPeriodo() {
     const startDate = getStartDate('_quejasredes');
     const endDate = getEndDate('_quejasredes');
     return quejasData.filter(q => esQuejaDeRedesOperativa(q)).filter(q => {
@@ -3639,18 +3629,18 @@ async function loadRRData() {
 
   function updateSeguRanking() {
     const mapaZona = window._quejasMapaZona || {};
-    const gerentesUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean);
+    const zonasUnicos = [...new Set(Object.values(mapaZona))].filter(Boolean);
     const base = getQuejasSeguimiento();
 
-    const filas = gerentesUnicos.map(gerente => {
-      const propias = base.filter(q => q.Zona === gerente || (mapaZona[q.Sucursal] === gerente));
+    const filas = zonasUnicos.map(zona => {
+      const propias = base.filter(q => q.Zona === zona || (mapaZona[q.Sucursal] === zona));
       const cerradas = propias.filter(q => q.Estatus === 'Cerrada');
       const cerradasConTiempo = cerradas.filter(q => typeof q['Tiempo_Resolución_Dias'] === 'number');
       const tiempoProm = cerradasConTiempo.length > 0
         ? (cerradasConTiempo.reduce((sum, q) => sum + q['Tiempo_Resolución_Dias'], 0) / cerradasConTiempo.length).toFixed(1)
         : '--';
       const pctCerradas = propias.length > 0 ? Math.round((cerradas.length / propias.length) * 100) : 0;
-      return { gerente, total: propias.length, cerradas: cerradas.length, pctCerradas, tiempoProm };
+      return { zona, total: propias.length, cerradas: cerradas.length, pctCerradas, tiempoProm };
     }).filter(f => f.total > 0)
       .sort((a, b) => b.pctCerradas - a.pctCerradas);
 
@@ -3663,12 +3653,12 @@ async function loadRRData() {
     container.innerHTML = `
       <table class="segu-rank-table">
         <thead>
-          <tr><th>Zona/Gerente</th><th>Total</th><th>Cerradas</th><th>% Cerradas</th><th>Días prom. (redes)</th></tr>
+          <tr><th>Zona</th><th>Total</th><th>Cerradas</th><th>% Cerradas</th><th>Días prom. (redes)</th></tr>
         </thead>
         <tbody>
           ${filas.map(f => `
             <tr>
-              <td>${f.gerente}</td>
+              <td>${f.zona}</td>
               <td>${f.total}</td>
               <td>${f.cerradas}</td>
               <td>${f.pctCerradas}%</td>
@@ -3682,14 +3672,14 @@ async function loadRRData() {
 
   function renderSeguimiento() {
     const estatusFiltro = document.getElementById('seguEstatusFilter').value;
-    const gerenteFiltro = document.getElementById('seguGerenteFilter').value;
+    const zonaFiltro = document.getElementById('seguZonaFilter').value;
     const canalFiltro = document.getElementById('seguCanalFilter').value;
     const mapaZona = window._quejasMapaZona || {};
     const container = document.getElementById('seguList');
 
     let filtered = getQuejasSeguimiento();
     if (estatusFiltro) filtered = filtered.filter(q => q.Estatus === estatusFiltro);
-    if (gerenteFiltro) filtered = filtered.filter(q => (mapaZona[q.Sucursal] || q.Zona) === gerenteFiltro);
+    if (zonaFiltro) filtered = filtered.filter(q => (mapaZona[q.Sucursal] || q.Zona) === zonaFiltro);
     if (canalFiltro) filtered = filtered.filter(q => q['Canal_Origen'] === canalFiltro);
 
     filtered.sort((a, b) => (parseFechaFlexible(b['Fecha_Recepción']) || 0) - (parseFechaFlexible(a['Fecha_Recepción']) || 0));
@@ -3725,14 +3715,11 @@ async function loadRRData() {
           </div>
         `;
       } else if (estatus === 'En Proceso') {
-        // Gerente: único rol que puede cerrar. Se identifica por selector (no nombre libre)
+        // Zona: único rol que puede cerrar. Se identifica por selector (no nombre libre)
         // y debe documentar cómo se resolvió antes de poder cerrar el caso.
         botonesAccion = `
           <div class="segu-actions-row">
-            <select id="seguGerenteCierre-${quejaId}">
-              <option value="">Selecciona el gerente que cierra…</option>
-              ${obtenerGerentesListaActual().map(g => `<option value="${g}">${g}</option>`).join('')}
-            </select>
+            <input type="text" id="seguCierreNombre-${quejaId}" placeholder="Tu nombre (quien cierra el caso)" />
           </div>
           <div>
             <div class="segu-field-label">Cómo se resolvió / si la acción fue correcta</div>
@@ -3818,13 +3805,13 @@ async function loadRRData() {
   }
 
   function cerrarQueja(quejaId) {
-    const gerenteSelect = document.getElementById('seguGerenteCierre-' + quejaId);
+    const cierreInput = document.getElementById('seguCierreNombre-' + quejaId);
     const resolucionInput = document.getElementById('seguResolucion-' + quejaId);
-    const gerente = gerenteSelect ? gerenteSelect.value : '';
+    const zona = cierreInput ? cierreInput.value.trim() : '';
     const resolucionTexto = resolucionInput ? resolucionInput.value.trim() : '';
 
-    if (!gerente) {
-      alert('Selecciona qué gerente está cerrando el caso — solo gerentes pueden cerrar quejas.');
+    if (!zona) {
+      alert('Escribe tu nombre antes de cerrar el caso — queda registrado en la nota de seguimiento.');
       return;
     }
     if (!resolucionTexto) {
@@ -3833,7 +3820,7 @@ async function loadRRData() {
     }
 
     const boton = document.querySelector(`#segu-card-${quejaId} .btn-segu.cerrar`);
-    enviarAccionSeguimiento(quejaId, 'cerrar', gerente, resolucionTexto, boton);
+    enviarAccionSeguimiento(quejaId, 'cerrar', zona, resolucionTexto, boton);
   }
 
   // ============================================
@@ -3843,7 +3830,7 @@ async function loadRRData() {
   // Quejas), pero — a diferencia de los KPIs de Seguimiento, que
   // incluyen TODO (Google + redes) — aquí filtramos SOLO canales de
   // redes/contacto directo (Canal_Origen != 'Google Maps'), porque el
-  // apartado se llama explícitamente "Quejas Redes Sociales" y mezclar
+  // apartado se llama explícitamente "Redes Sociales" y mezclar
   // el volumen de Google (mucho mayor) distorsionaría las proporciones
   // por canal/categoría que son el punto de esta vista.
 
@@ -3959,30 +3946,30 @@ async function loadRRData() {
     });
   }
 
-  // "Volumen y resolución por gerente" es la ÚNICA de las 4 gráficas de
+  // "Volumen y resolución por zona" es la ÚNICA de las 4 gráficas de
   // este bloque que excluye las quejas marcadas Excluir_Seguimiento="Sí"
   // (el reseteo de conteo pedido por Abraham el 20 ago 2026, antes de
-  // activar el módulo con los gerentes). Las otras 3 (tendencia, canal,
+  // activar el módulo con los zonas). Las otras 3 (tendencia, canal,
   // categoría) siguen mostrando el histórico completo sin filtrar, tal
   // como se decidió: "el histórico solo sirve para las gráficas excepto
   // la de volumen y resolución". Por eso NO usa el mismo array `datos`
   // que las demás — arma su propio dataset a partir de datos.
-  function renderChartPorGerente(datos) {
+  function renderChartPorZona(datos) {
     const datosElegibles = datos.filter(q => q['Excluir_Seguimiento'] !== 'Sí');
     const mapaZona = window._quejasMapaZona || {};
-    const porGerente = {}; // gerente -> { total, cerradas }
+    const agrupadoZona = {}; // zona -> { total, cerradas }
     datosElegibles.forEach(q => {
-      const gerente = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
-      if (!porGerente[gerente]) porGerente[gerente] = { total: 0, cerradas: 0 };
-      porGerente[gerente].total++;
-      if (q.Estatus === 'Cerrada') porGerente[gerente].cerradas++;
+      const zona = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
+      if (!agrupadoZona[zona]) agrupadoZona[zona] = { total: 0, cerradas: 0 };
+      agrupadoZona[zona].total++;
+      if (q.Estatus === 'Cerrada') agrupadoZona[zona].cerradas++;
     });
-    const labels = Object.keys(porGerente).sort((a, b) => porGerente[b].total - porGerente[a].total);
+    const labels = Object.keys(agrupadoZona).sort((a, b) => agrupadoZona[b].total - agrupadoZona[a].total);
 
-    const ctx = document.getElementById('chartPorGerente');
+    const ctx = document.getElementById('chartPorZona');
     if (labels.length === 0) {
       // Justo lo esperado al arrancar limpio: sin casos nuevos post-activación
-      // todavía, no hay nada que graficar para ningún gerente.
+      // todavía, no hay nada que graficar para ningún zona.
       ctx.getContext('2d').clearRect(0, 0, 9999, 9999);
       return null;
     }
@@ -3994,12 +3981,12 @@ async function loadRRData() {
         datasets: [
           {
             label: 'Total',
-            data: labels.map(l => porGerente[l].total),
+            data: labels.map(l => agrupadoZona[l].total),
             backgroundColor: '#e65100',
           },
           {
             label: 'Cerradas',
-            data: labels.map(l => porGerente[l].cerradas),
+            data: labels.map(l => agrupadoZona[l].cerradas),
             backgroundColor: '#2e7d32',
           },
         ],
@@ -4143,11 +4130,11 @@ async function loadRRData() {
       window._quejasRedesCharts.forEach(c => c && c.destroy());
     }
 
-    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorGerente', 'insightPorSucursal'];
+    const vacios = ['insightTendenciaMensual', 'insightPorCanal', 'insightPorCategoria', 'insightPorZona', 'insightPorSucursal'];
     if (datos.length === 0) {
       window._quejasRedesCharts = [];
       vacios.forEach(id => { document.getElementById(id).innerHTML = ''; });
-      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorGerente', 'chartPorSucursal'].forEach(id => {
+      ['chartTendenciaMensual', 'chartPorCanal', 'chartPorCategoria', 'chartPorZona', 'chartPorSucursal'].forEach(id => {
         const ctx = document.getElementById(id).getContext('2d');
         ctx.clearRect(0, 0, 9999, 9999);
       });
@@ -4158,7 +4145,7 @@ async function loadRRData() {
       renderChartTendenciaMensual(datos),
       renderChartPorCanal(datos),
       renderChartPorCategoria(datos),
-      renderChartPorGerente(getQuejasGerentePorPeriodo()),
+      renderChartPorZona(getQuejasZonaPorPeriodo()),
       renderChartPorSucursal(datos),
     ];
 
@@ -4169,7 +4156,7 @@ async function loadRRData() {
     document.getElementById('insightTendenciaMensual').innerHTML = insightTendencia(datos);
     document.getElementById('insightPorCanal').innerHTML = insightCanal(datos);
     document.getElementById('insightPorCategoria').innerHTML = insightCategoria(datos);
-    document.getElementById('insightPorGerente').innerHTML = insightGerente(getQuejasGerentePorPeriodo());
+    document.getElementById('insightPorZona').innerHTML = insightZona(getQuejasZonaPorPeriodo());
     document.getElementById('insightPorSucursal').innerHTML = insightPorSucursal(datos);
   }
 
@@ -4236,28 +4223,28 @@ async function loadRRData() {
     return `<strong>Lectura:</strong> ${lectura}`;
   }
 
-  function insightGerente(datos) {
+  function insightZona(datos) {
     const datosElegibles = datos.filter(q => q['Excluir_Seguimiento'] !== 'Sí');
     const mapaZona = window._quejasMapaZona || {};
-    const porGerente = {};
+    const agrupadoZona = {};
     datosElegibles.forEach(q => {
       const g = q.Zona || mapaZona[q.Sucursal] || 'Sin asignar';
-      if (!porGerente[g]) porGerente[g] = { total: 0, cerradas: 0 };
-      porGerente[g].total++;
-      if (q.Estatus === 'Cerrada') porGerente[g].cerradas++;
+      if (!agrupadoZona[g]) agrupadoZona[g] = { total: 0, cerradas: 0 };
+      agrupadoZona[g].total++;
+      if (q.Estatus === 'Cerrada') agrupadoZona[g].cerradas++;
     });
-    const entradas = Object.entries(porGerente).filter(([, v]) => v.total >= 2);
-    if (entradas.length === 0) return '<strong>Lectura:</strong> Aún no hay casos nuevos registrados desde la activación del módulo de seguimiento — esta gráfica empezará a poblarse con los próximos casos de cada gerente.';
+    const entradas = Object.entries(agrupadoZona).filter(([, v]) => v.total >= 2);
+    if (entradas.length === 0) return '<strong>Lectura:</strong> Aún no hay casos nuevos registrados desde la activación del módulo de seguimiento — esta gráfica empezará a poblarse con los próximos casos de cada zona.';
 
-    const conPct = entradas.map(([g, v]) => ({ gerente: g, total: v.total, pct: Math.round((v.cerradas / v.total) * 100) }));
+    const conPct = entradas.map(([g, v]) => ({ zona: g, total: v.total, pct: Math.round((v.cerradas / v.total) * 100) }));
     const mejor = conPct.reduce((a, b) => (b.pct > a.pct ? b : a));
     const peor = conPct.reduce((a, b) => (b.pct < a.pct ? b : a));
 
     let lectura;
-    if (mejor.gerente === peor.gerente) {
-      lectura = `${mejor.gerente} es la única zona con volumen suficiente para comparar este periodo (${mejor.pct}% cerradas).`;
+    if (mejor.zona === peor.zona) {
+      lectura = `${mejor.zona} es la única zona con volumen suficiente para comparar este periodo (${mejor.pct}% cerradas).`;
     } else if (mejor.pct - peor.pct >= 30) {
-      lectura = `Brecha amplia entre zonas: ${mejor.gerente} cierra ${mejor.pct}% de sus casos vs ${peor.pct}% de ${peor.gerente}. Vale la pena entender qué está haciendo distinto ${mejor.gerente} — podría ser un proceso replicable, no solo suerte de volumen.`;
+      lectura = `Brecha amplia entre zonas: ${mejor.zona} cierra ${mejor.pct}% de sus casos vs ${peor.pct}% de ${peor.zona}. Vale la pena entender qué está haciendo distinto ${mejor.zona} — podría ser un proceso replicable, no solo suerte de volumen.`;
     } else {
       lectura = `El desempeño entre zonas es relativamente parejo (entre ${peor.pct}% y ${mejor.pct}% de casos cerrados), sin una brecha que salte a la vista.`;
     }
@@ -4367,7 +4354,7 @@ async function loadRRData() {
             </select>
           </div>
           <div>
-            <label>Zona/Gerente (automático)</label>
+            <label>Zona (automático)</label>
             <input type="text" id="contactoNuevoZona" readonly placeholder="Se llena al elegir sucursal" style="background:#f5f5f5; color:#666;" />
           </div>
           <div>
@@ -4493,11 +4480,10 @@ async function loadRRData() {
   }
 
   function updateSeguimientoSection() {
-    populateSeguGerenteFilter();
+    populateSeguZonaFilter();
     updateSeguKpis();
     updateSeguRanking();
     renderSeguimiento();
-    updateQuejasRedesCharts();
   }
 
   document.getElementById('contactoFolioInput').addEventListener('keydown', (e) => {
@@ -4505,7 +4491,7 @@ async function loadRRData() {
   });
 
   document.getElementById('seguEstatusFilter').addEventListener('change', renderSeguimiento);
-  document.getElementById('seguGerenteFilter').addEventListener('change', renderSeguimiento);
+  document.getElementById('seguZonaFilter').addEventListener('change', renderSeguimiento);
   document.getElementById('seguCanalFilter').addEventListener('change', renderSeguimiento);
 
   // ============================================================
@@ -4894,7 +4880,7 @@ async function loadRRData() {
 
   Promise.all([loadData(), loadQuejasSheetData(), loadRRData()])
     .then(() => loadQuejasData())
-    .then(() => { updateRespSection(); updateSeguimientoSection(); })
+    .then(() => { updateRespSection(); updateSeguimientoSection(); updateQuejasRedesCharts(); })
     // Rebel Rewards carga al final (necesita window._quejasMapaZona) y de forma
     // independiente: si algo falla antes en la cadena, igual intenta cargar.
     .finally(() => loadRewardsData());
