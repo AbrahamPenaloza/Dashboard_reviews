@@ -940,21 +940,36 @@
   <div class="rr-wrap" id="rrSection">
     <div class="rr-launch-strip">
       <span class="rr-badge">LANZAMIENTO</span>
-      <span class="rr-date">👉 14 de septiembre de 2026</span>
+      <span class="rr-date">👉 15 de octubre de 2026</span>
       <span class="rr-days" id="rrDaysCounter">Cargando conteo…</span>
     </div>
 
     <div class="rr-kpi-grid">
       <div class="rr-kpi-card rr-piloto">
-        <div class="rr-label">Piloto — 14 sucursales (rating actual)</div>
+        <div class="rr-label" id="rrPilotoLabel">Piloto (rating actual)</div>
         <div class="rr-value" id="rrPilotoRating">--</div>
         <div class="rr-foot" id="rrPilotoFoot">Cargando…</div>
       </div>
       <div class="rr-kpi-card rr-control">
-        <div class="rr-label">Control — 38 sucursales (rating actual)</div>
+        <div class="rr-label" id="rrControlLabel">Control (rating actual)</div>
         <div class="rr-value" id="rrControlRating">--</div>
         <div class="rr-foot" id="rrControlFoot">Cargando…</div>
       </div>
+    </div>
+
+    <div class="rr-chart-card" id="rrComparativoCard">
+      <div class="rr-ctitle">Antes vs. después del lanzamiento — calificación de reseñas nuevas</div>
+      <div class="rr-csub">Promedio de las reseñas que entran en cada ventana (no del acumulado histórico). Antes = 2-sep a 14-oct · Después = desde el 15-oct. Portal Vallejo salió del piloto (no recibió los QR) y cuenta como control.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Grupo</th>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Antes (2-sep → 14-oct)</th>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Después (desde 15-oct)</th>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Cambio</th>
+        </tr></thead>
+        <tbody id="rrComparativoBody"></tbody>
+      </table>
+      <div class="rr-note" style="margin-top:12px;">Con pocas reseñas nuevas el promedio se mueve mucho: las celdas con menos de 30 reseñas aparecen en cursiva y deben leerse como tendencia, no como resultado.</div>
     </div>
 
     <div class="rr-chart-card">
@@ -965,7 +980,7 @@
         <span class="rr-li"><span class="rr-dot" style="background:#8A8378;"></span>Control</span>
       </div>
       <div style="position:relative;height:280px;">
-        <canvas id="rrTrendChart" role="img" aria-label="Gráfica de línea mostrando el rating actual de sucursales piloto y control al día de hoy, con proyección punteada hacia la fecha de lanzamiento del 14 de septiembre y semanas posteriores">Rating actual: piloto 3.84, control 4.01. Proyección desde el lanzamiento aún sin datos.</canvas>
+        <canvas id="rrTrendChart" role="img" aria-label="Gráfica de línea mostrando el rating actual de sucursales piloto y control al día de hoy, con una marca en la fecha de lanzamiento del 15 de octubre">Rating acumulado de piloto y control desde el snapshot base, con marca de lanzamiento el 15 de octubre.</canvas>
       </div>
     </div>
 
@@ -1005,6 +1020,7 @@
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Sucursal</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating actual</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Reseñas</th>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating pre-lanzamiento</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating post-lanzamiento</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Atención</th>
           </tr>
@@ -1014,7 +1030,7 @@
     </div>
 
     <div class="rr-note">
-      💡 La sección R+R mide el impacto de la campaña desde su snapshot base (2-sep-2026). La gráfica muestra el acumulado real día a día — cada vez que se recarga el dashboard, se suma un punto nuevo si hay reseñas más recientes. La columna "Rating post-lanzamiento" se activará a partir del 14 de septiembre.
+      💡 R+R arrancó el 15-oct-2026. El histórico del 2-sep al 14-oct (snapshot base + reseñas capturadas) queda como línea base «antes»; todo lo que entre desde el 15-oct cuenta como «después». Portal Vallejo salió del piloto (no recibió los QR) y cuenta como control en todo el histórico, para comparar siempre las mismas sucursales. El rating actual combina antes + después.
     </div>
   </div>
 
@@ -1227,7 +1243,39 @@
 // ============================================================
 
 const RR_SNAPSHOT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('RR_Snapshot')}`;
-const RR_LANZAMIENTO = new Date(2026, 8, 14); // 14-sep-2026 (mes 0-indexado)
+const RR_LANZAMIENTO = new Date(2026, 9, 15); // 15-oct-2026 (mes 0-indexado) — arranque oficial R+R
+// Sucursales sacadas del PILOTO (ej. no recibieron los QR). Pasan al grupo Control, en todo el histórico,
+// porque no tuvieron el tratamiento. Para sacarlas de la muestra por completo, ver bloque en loadRRData.
+const RR_EXCLUIDAS = ['Portal Vallejo'];
+function rrExcluida(nombre) {
+  const n = String(nombre || '').trim().toLowerCase();
+  return RR_EXCLUIDAS.some(x => n === x.toLowerCase() || n.includes(x.toLowerCase()));
+}
+function rrCombinar(g) {
+  const n = g.pre.n + g.post.n;
+  return n > 0 ? (g.pre.suma + g.post.suma) / n : null;
+}
+function rrLaunchLinePlugin() {
+  return {
+    id: 'rrLaunch',
+    afterDatasetsDraw(chart) {
+      const inicio = new Date(RR_SNAPSHOT_FECHA); inicio.setHours(0, 0, 0, 0);
+      const idx = Math.round((RR_LANZAMIENTO - inicio) / 86400000);
+      const n = chart.data.labels.length;
+      if (idx < 0 || idx >= n) return;
+      const x = chart.scales.x.getPixelForValue(idx);
+      const { top, bottom } = chart.chartArea;
+      const c = chart.ctx;
+      c.save();
+      c.setLineDash([5, 4]); c.strokeStyle = '#C8102E'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom); c.stroke();
+      c.setLineDash([]); c.fillStyle = '#C8102E'; c.font = '11px sans-serif';
+      c.textAlign = idx > n - 4 ? 'right' : 'center';
+      c.fillText('Lanzamiento', idx > n - 4 ? x - 4 : x, top + 10);
+      c.restore();
+    }
+  };
+}
 const RR_SNAPSHOT_FECHA = new Date(2026, 8, 2); // 2-sep-2026, fecha del snapshot congelado
 
 let rrSnapshot = {}; // 'Nombre de sucursal' -> { grupo, ratingBase, totalBase }
@@ -1351,6 +1399,11 @@ function calcularAgregadosRR() {
     control: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
   };
 
+  // Solo reseñas NUEVAS (sin snapshot base) por ventana, para el comparativo antes/después.
+  const nuevasAcc = {
+    piloto: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
+    control: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
+  };
   // Detalle por sucursal: 'NOMBRE' -> { grupo, pre: {suma,n}, post: {suma,n} }
   const porSucursal = {};
 
@@ -1400,6 +1453,8 @@ function calcularAgregadosRR() {
     const ventana = fecha < RR_LANZAMIENTO ? 'pre' : 'post';
     const clave = grupo === 'Piloto' ? 'piloto' : 'control';
 
+    nuevasAcc[clave][ventana].suma += calificacion;
+    nuevasAcc[clave][ventana].n += 1;
     acumulador[clave][ventana].suma += calificacion;
     acumulador[clave][ventana].n += 1;
 
@@ -1420,13 +1475,15 @@ function calcularAgregadosRR() {
       const s = porSucursal[nombre];
       return {
         nombre,
+        ratingActual: (s.pre.n + s.post.n) > 0 ? (s.pre.suma + s.post.suma) / (s.pre.n + s.post.n) : null,
+        nActual: s.pre.n + s.post.n,
         ratingPre: promedio(s.pre),
         nPre: s.pre.n,
         ratingPost: promedio(s.post),
         nPost: s.post.n,
       };
     })
-    .sort((a, b) => (a.ratingPre ?? 999) - (b.ratingPre ?? 999));
+    .sort((a, b) => (a.ratingActual ?? 999) - (b.ratingActual ?? 999));
 
   return {
     piloto: {
@@ -1438,6 +1495,18 @@ function calcularAgregadosRR() {
       post: { rating: promedio(acumulador.control.post), n: acumulador.control.post.n },
     },
     detallePiloto,
+    actual: {
+      piloto: { rating: rrCombinar(acumulador.piloto), n: acumulador.piloto.pre.n + acumulador.piloto.post.n },
+      control: { rating: rrCombinar(acumulador.control), n: acumulador.control.pre.n + acumulador.control.post.n },
+    },
+    nuevas: {
+      piloto: { pre: promedio(nuevasAcc.piloto.pre), nPre: nuevasAcc.piloto.pre.n, post: promedio(nuevasAcc.piloto.post), nPost: nuevasAcc.piloto.post.n },
+      control: { pre: promedio(nuevasAcc.control.pre), nPre: nuevasAcc.control.pre.n, post: promedio(nuevasAcc.control.post), nPost: nuevasAcc.control.post.n },
+    },
+    nSucursales: {
+      piloto: Object.values(porSucursal).filter(x => x.grupo === 'Piloto').length,
+      control: Object.values(porSucursal).filter(x => x.grupo === 'Control').length,
+    },
   };
 }
 
@@ -1450,24 +1519,24 @@ let rrTrendChartInstance = null;
 let rrVolumeChartInstance = null;
 
 function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucursal) {
-  const launch = new Date(2026, 8, 14);
+  const launch = RR_LANZAMIENTO;
   const today = new Date();
   const diffDays = Math.ceil((launch - today) / (1000 * 60 * 60 * 24));
   document.getElementById('rrDaysCounter').textContent =
-    diffDays > 0 ? `Faltan ${diffDays} días` : 'Campaña en curso';
+    diffDays > 0 ? `Faltan ${diffDays} días` : `Campaña en curso · día ${Math.floor((today - launch) / 86400000) + 1}`;
 
-  const pilotoRating = agregados.piloto.pre.rating;
-  const controlRating = agregados.control.pre.rating;
+  const pilotoRating = agregados.actual.piloto.rating;
+  const controlRating = agregados.actual.control.rating;
 
   document.getElementById('rrPilotoRating').textContent =
     pilotoRating != null ? pilotoRating.toFixed(2) : '--';
   document.getElementById('rrPilotoFoot').textContent =
-    agregados.piloto.pre.n > 0 ? `${agregados.piloto.pre.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
+    agregados.actual.piloto.n > 0 ? `${agregados.actual.piloto.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
 
   document.getElementById('rrControlRating').textContent =
     controlRating != null ? controlRating.toFixed(2) : '--';
   document.getElementById('rrControlFoot').textContent =
-    agregados.control.pre.n > 0 ? `${agregados.control.pre.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
+    agregados.actual.control.n > 0 ? `${agregados.actual.control.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
 
   // Serie real día a día (snapshot -> hoy). Todavía no existen días
   // futuros con datos, así que no se dibuja ningún tramo punteado por
@@ -1483,6 +1552,7 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
 
   const ctx = document.getElementById('rrTrendChart');
   rrTrendChartInstance = new Chart(ctx, {
+    plugins: [rrLaunchLinePlugin()],
     type: 'line',
     data: {
       labels,
@@ -1502,6 +1572,7 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
     },
   });
 
+  rrRenderComparativo(agregados);
   renderRRDetalle(agregados.detallePiloto || []);
 
   // Gráfica de volumen diario — barras agrupadas Piloto vs Control.
@@ -1512,6 +1583,7 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
   }
   const ctxVol = document.getElementById('rrVolumeChart');
   rrVolumeChartInstance = new Chart(ctxVol, {
+    plugins: [rrLaunchLinePlugin()],
     type: 'bar',
     data: {
       labels: volumenDiario.labels,
@@ -1625,25 +1697,50 @@ function renderRRPorSucursal(volumenPorSucursal) {
   }
 }
 
+function rrRenderComparativo(agregados) {
+  document.getElementById('rrPilotoLabel').textContent =
+    `Piloto — ${agregados.nSucursales.piloto} sucursales (rating actual)`;
+  document.getElementById('rrControlLabel').textContent =
+    `Control — ${agregados.nSucursales.control} sucursales (rating actual)`;
+
+  const celda = (rating, n) => {
+    if (rating == null || !n) return '<td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#8A8378;">Sin reseñas aún</td>';
+    const chica = n < 30;
+    return `<td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;${chica ? 'font-style:italic;color:#6B5D52;' : ''}"><strong>${rating.toFixed(2)}</strong> <small>(n=${n.toLocaleString('es-MX')})</small></td>`;
+  };
+  const fila = (nombre, color, g) => {
+    let cambio = '<span style="color:#8A8378;">—</span>';
+    if (g.pre != null && g.post != null) {
+      const d = g.post - g.pre;
+      const c = d > 0.005 ? '#1D9E75' : d < -0.005 ? '#D85A30' : '#8A8378';
+      cambio = `<strong style="color:${c};">${d >= 0 ? '+' : ''}${d.toFixed(2)}</strong>`;
+    }
+    return `<tr><td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;font-weight:700;"><span class="rr-dot" style="background:${color};margin-right:6px;"></span>${nombre}</td>${celda(g.pre, g.nPre)}${celda(g.post, g.nPost)}<td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">${cambio}</td></tr>`;
+  };
+  document.getElementById('rrComparativoBody').innerHTML =
+    fila('Piloto', '#C8102E', agregados.nuevas.piloto) + fila('Control', '#8A8378', agregados.nuevas.control);
+}
+
 function renderRRDetalle(detalle) {
   const tbody = document.getElementById('rrDetalleBody');
   if (!tbody) return;
 
   if (!detalle.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="padding:12px 10px;color:#6B5D52;">Sin datos de sucursales piloto todavía.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:12px 10px;color:#6B5D52;">Sin datos de sucursales piloto todavía.</td></tr>';
     return;
   }
 
   tbody.innerHTML = detalle.map(s => {
-    const rating = s.ratingPre != null ? s.ratingPre.toFixed(2) : '--';
-    const nReseñas = s.nPre != null ? s.nPre.toLocaleString('es-MX') : '--';
-    const ratingPost = s.ratingPost != null ? s.ratingPost.toFixed(2) : 'Sin datos aún';
+    const rating = s.ratingActual != null ? s.ratingActual.toFixed(2) : '--';
+    const nReseñas = s.nActual != null ? s.nActual.toLocaleString('es-MX') : '--';
+    const ratingPreTxt = s.ratingPre != null ? s.ratingPre.toFixed(2) : '--';
+    const ratingPost = s.ratingPost != null ? `${s.ratingPost.toFixed(2)} (n=${s.nPost})` : 'Sin datos aún';
 
     let colorAtencion = '#8A8378';
     let textoAtencion = '--';
-    if (s.ratingPre != null) {
-      if (s.ratingPre < 3.5) { colorAtencion = '#D85A30'; textoAtencion = 'Urgente'; }
-      else if (s.ratingPre < 4.0) { colorAtencion = '#C98500'; textoAtencion = 'Vigilar'; }
+    if (s.ratingActual != null) {
+      if (s.ratingActual < 3.5) { colorAtencion = '#D85A30'; textoAtencion = 'Urgente'; }
+      else if (s.ratingActual < 4.0) { colorAtencion = '#C98500'; textoAtencion = 'Vigilar'; }
       else { colorAtencion = '#1D9E75'; textoAtencion = 'Va bien'; }
     }
 
@@ -1652,6 +1749,7 @@ function renderRRDetalle(detalle) {
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;font-weight:600;">${s.nombre}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;font-weight:700;">${rating}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">${nReseñas}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#6B5D52;">${ratingPreTxt}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#6B5D52;">${ratingPost}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">
           <span style="display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:12px;padding:2px 9px;border-radius:6px;background:${colorAtencion}1F;color:${colorAtencion};">
@@ -1839,6 +1937,9 @@ function calcularVolumenDiarioPorSucursalRR() {
 // en el Promise.all de arranque del dashboard.
 async function loadRRData() {
   await Promise.all([loadRRSnapshot(), loadRRReviews(), loadRRGrupos()]);
+  // Portal Vallejo (sin QR) sale del piloto y pasa a Control, tanto en snapshot como en el mapa de grupos.
+  Object.keys(rrSnapshot).forEach(k => { if (rrExcluida(k) && rrSnapshot[k].grupo === 'Piloto') rrSnapshot[k].grupo = 'Control'; });
+  Object.keys(rrGrupoPorSucursal).forEach(k => { if (rrExcluida(k) && rrGrupoPorSucursal[k] === 'Piloto') rrGrupoPorSucursal[k] = 'Control'; });
   const agregados = calcularAgregadosRR();
   const serieDiaria = calcularSerieDiariaRR();
   const volumenDiario = calcularVolumenDiarioRR();
