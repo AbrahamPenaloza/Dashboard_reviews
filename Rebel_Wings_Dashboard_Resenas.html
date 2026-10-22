@@ -934,13 +934,8 @@
     .rr-legend-row .rr-li{display:flex;align-items:center;gap:6px;}
     .rr-dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
     .rr-note{font-size:12px;color:#6B5D52;background:#FBF3E9;border:1px solid #F0E0C8;border-radius:10px;padding:10px 14px;margin-top:6px;line-height:1.5;}
-    .rr-alert{background:#FFF4E5;border:1px solid #F5C77E;border-radius:12px;padding:14px 16px;margin:0 0 16px;}
-    .rr-alert-title{font-weight:700;color:#8A4B00;font-size:14px;margin-bottom:4px;}
-    .rr-alert-sub{font-size:12px;color:#6B5D52;line-height:1.5;margin-bottom:10px;}
-    .rr-alert-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #F5DDB5;font-size:13px;}
-    .rr-alert-row .rr-alert-name{font-weight:600;min-width:150px;}
-    .rr-alert-row .rr-alert-num{color:#6B5D52;flex:1;min-width:220px;}
-    .rr-alert-row label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;}
+    .rr-foot-note{font-size:11px;color:#8A8378;line-height:1.5;margin-top:8px;padding:0 4px;}
+    .rr-foot-note label{cursor:pointer;text-decoration:underline dotted;margin-left:4px;}
     @media (max-width:820px){.rr-kpi-grid{grid-template-columns:1fr;}}
   </style>
 
@@ -949,12 +944,6 @@
       <span class="rr-badge">LANZAMIENTO</span>
       <span class="rr-date">👉 15 de octubre de 2026</span>
       <span class="rr-days" id="rrDaysCounter">Cargando conteo…</span>
-    </div>
-
-    <div class="rr-alert" id="rrAlertaCard" style="display:none;">
-      <div class="rr-alert-title">⚠ Posible ráfaga de reseñas no verificada</div>
-      <div class="rr-alert-sub">En estas sucursales la hoja de Reseñas trae muchas más filas nuevas que el crecimiento real del total en Google (Total_Resenas_Google − base del 2-sep). Por defecto se <b>excluyen</b> de los cálculos R+R; si confirmas que son reales, márcalas para incluirlas.</div>
-      <div id="rrAlertaLista"></div>
     </div>
 
     <div class="rr-kpi-grid">
@@ -1056,6 +1045,7 @@
     <div class="rr-note">
       💡 R+R arrancó el 15-oct-2026. El histórico del 2-sep al 14-oct (snapshot base + reseñas capturadas) queda como línea base «antes»; todo lo que entre desde el 15-oct cuenta como «después». El piloto incluye a Portal Vallejo. El rating actual combina antes + después.
     </div>
+    <div class="rr-foot-note" id="rrAlertaCard" style="display:none;"></div>
   </div>
 
   </div> <!-- /tab-rr -->
@@ -2101,20 +2091,18 @@ function rrDetectarAnomalias() {
 }
 
 function rrRenderAlerta() {
-  const card = document.getElementById('rrAlertaCard');
-  const lista = document.getElementById('rrAlertaLista');
-  if (!card || !lista) return;
-  if (!rrAnomalias.length) { card.style.display = 'none'; lista.innerHTML = ''; return; }
-  card.style.display = '';
-  lista.innerHTML = rrAnomalias.map((a, i) => {
+  const nota = document.getElementById('rrAlertaCard');
+  if (!nota) return;
+  if (!rrAnomalias.length) { nota.style.display = 'none'; nota.innerHTML = ''; return; }
+  nota.style.display = '';
+  const partes = rrAnomalias.map((a, i) => {
     const incl = rrIncluirManual.has(a.nombre);
-    return `<div class="rr-alert-row">
-      <span class="rr-alert-name">${a.nombre} <span style="font-weight:400;color:#8A8378;">(${a.grupo})</span></span>
-      <span class="rr-alert-num">${a.filas.toLocaleString('es-MX')} filas en la hoja vs. +${a.crecimiento.toLocaleString('es-MX')} en Google · ${incl ? 'INCLUIDA en los cálculos' : 'excluida de los cálculos'}</span>
-      <label><input type="checkbox" data-rr-incl="${i}" ${incl ? 'checked' : ''}> Incluir de todos modos</label>
-    </div>`;
-  }).join('');
-  lista.querySelectorAll('input[data-rr-incl]').forEach(cb => {
+    return `${a.nombre} (${a.filas.toLocaleString('es-MX')} filas en la hoja vs. +${a.crecimiento.toLocaleString('es-MX')} en Google; ${incl ? 'incluida' : 'excluida'})` +
+      `<label><input type="checkbox" data-rr-incl="${i}" ${incl ? 'checked' : ''} style="vertical-align:-1px;margin-right:3px;">incluir</label>`;
+  });
+  nota.innerHTML = 'Nota: las reseñas nuevas de ' + partes.join('; ') +
+    ' no coinciden con el crecimiento real del total en Google; por defecto se excluyen de los cálculos R+R.';
+  nota.querySelectorAll('input[data-rr-incl]').forEach(cb => {
     cb.addEventListener('change', () => {
       const nombre = rrAnomalias[Number(cb.dataset.rrIncl)].nombre;
       if (cb.checked) rrIncluirManual.add(nombre); else rrIncluirManual.delete(nombre);
