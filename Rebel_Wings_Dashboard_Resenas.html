@@ -1006,7 +1006,7 @@
 
     <div class="rr-chart-card">
       <div class="rr-ctitle">Reseñas nuevas por día — Piloto vs. Control</div>
-      <div class="rr-csub">Volumen diario, no acumulado. Esta gráfica se mueve mucho antes que el rating: útil para ver el efecto de la campaña sin esperar a que cambie la calificación.</div>
+      <div class="rr-csub">Volumen diario desde el 7-oct, no acumulado. Esta gráfica se mueve mucho antes que el rating: útil para ver el efecto de la campaña sin esperar a que cambie la calificación.</div>
       <div class="control-group" style="margin-bottom:8px;">
         <label for="rrMetricaVol">Mostrar:</label>
         <select id="rrMetricaVol" class="rr-metrica-sel"><option value="todas">Todas las reseñas</option><option value="pos">Solo positivas (4-5★)</option></select>
@@ -1022,7 +1022,7 @@
 
     <div class="rr-chart-card">
       <div class="rr-ctitle">Reseñas nuevas por sucursal — tendencia</div>
-      <div class="rr-csub">Volumen diario por sucursal. Un dropdown para las sucursales piloto (tonos rojos) y otro para las de control (tonos azul-gris): elige una sucursal para aislarla, deja «Todas» para ver el grupo completo u «Ocultar» para quitarlo de la gráfica.</div>
+      <div class="rr-csub">Volumen diario por sucursal desde el 7-oct. Un dropdown para las sucursales piloto (tonos rojos) y otro para las de control (tonos azul-gris): elige una sucursal para aislarla, deja «Todas» para ver el grupo completo u «Ocultar» para quitarlo de la gráfica.</div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;">
         <div class="control-group">
           <label for="rrMetricaSuc">Mostrar:</label>
@@ -1292,7 +1292,7 @@ function rrLaunchLinePlugin() {
   return {
     id: 'rrLaunch',
     afterDatasetsDraw(chart) {
-      const inicio = new Date(RR_SNAPSHOT_FECHA); inicio.setHours(0, 0, 0, 0);
+      const inicio = new Date(RR_GRAFICA_INICIO); inicio.setHours(0, 0, 0, 0);
       const idx = Math.round((RR_LANZAMIENTO - inicio) / 86400000);
       const n = chart.data.labels.length;
       if (idx < 0 || idx >= n) return;
@@ -1310,6 +1310,8 @@ function rrLaunchLinePlugin() {
   };
 }
 const RR_SNAPSHOT_FECHA = new Date(2026, 8, 2); // 2-sep-2026, fecha del snapshot congelado
+// Las gráficas solo muestran desde 7-oct (una semana antes del lanzamiento); los cálculos y la base siguen desde el snapshot.
+const RR_GRAFICA_INICIO = new Date(2026, 9, 7);
 
 let rrSnapshot = {}; // 'Nombre de sucursal' -> { grupo, ratingBase, totalBase }
 let rrReviews = [];  // filas de Reseñas desde RR_SNAPSHOT_FECHA en adelante
@@ -1613,8 +1615,8 @@ function renderRRTrend() {
   const dC = esMovil ? s.controlMovil : s.controlSerie;
 
   document.getElementById('rrTrendSub').textContent = esMovil
-    ? 'Calificación promedio de las reseñas que entraron en los últimos 7 días (sin el histórico): se mueve con cada reseña nueva. La línea roja punteada marca el lanzamiento (15-oct). Pasa el cursor para ver cuántas reseñas respaldan cada punto.'
-    : 'Rating acumulado (snapshot del 2-sep + reseñas nuevas) con el eje ajustado a la variación real. Cambia poco porque el histórico pesa mucho: pasa el cursor para ver el cambio en milésimas contra la base.';
+    ? 'Calificación promedio de las reseñas que entraron en los últimos 7 días (sin el histórico): se mueve con cada reseña nueva. Se muestra desde el 7-oct (una semana antes del lanzamiento); la línea roja punteada marca el lanzamiento (15-oct). Pasa el cursor para ver cuántas reseñas respaldan cada punto.'
+    : 'Rating acumulado (snapshot del 2-sep + reseñas nuevas) con el eje ajustado a la variación real. Se muestra desde el 7-oct. Cambia poco porque el histórico pesa mucho: pasa el cursor para ver el cambio en milésimas contra la base.';
 
   const y = rrAjusteY([...dP, ...dC]);
   if (rrTrendChartInstance) rrTrendChartInstance.destroy();
@@ -1943,7 +1945,7 @@ function renderRRDetalle(detalle) {
 }
 
 // Construye series diarias reales de rating acumulado por grupo, desde
-// el snapshot (2-sep) hasta hoy. Cada punto del día D representa el
+// el snapshot (2-sep) hasta hoy (se muestran desde el 7-oct). Cada punto del día D representa el
 // rating ponderado de TODO lo acumulado hasta ese día (snapshot base +
 // reseñas nuevas con fecha <= D) — no el rating de ese día aislado, para
 // que la línea sea estable y no salte por ruido de días con 1-2 reseñas.
@@ -2029,9 +2031,13 @@ function calcularSerieDiariaRR() {
     return { out, nn };
   }
   const mp = movil(dia.piloto), mc = movil(dia.control);
+  // Solo se muestran los días desde RR_GRAFICA_INICIO; lo anterior ya alimentó
+  // el acumulado y el promedio móvil de arriba.
+  const off = Math.max(0, Math.round((RR_GRAFICA_INICIO - inicio) / 86400000));
+  const cut = (arr) => arr.slice(off);
   return {
-    labels, pilotoSerie, controlSerie,
-    pilotoMovil: mp.out, controlMovil: mc.out, pilotoNMovil: mp.nn, controlNMovil: mc.nn,
+    labels: cut(labels), pilotoSerie: cut(pilotoSerie), controlSerie: cut(controlSerie),
+    pilotoMovil: cut(mp.out), controlMovil: cut(mc.out), pilotoNMovil: cut(mp.nn), controlNMovil: cut(mc.nn),
     baseP: base.piloto.n > 0 ? base.piloto.suma / base.piloto.n : null,
     baseC: base.control.n > 0 ? base.control.suma / base.control.n : null,
   };
@@ -2046,7 +2052,7 @@ function calcularSerieDiariaRR() {
 function calcularVolumenDiarioRR() {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
-  const inicio = new Date(RR_SNAPSHOT_FECHA);
+  const inicio = new Date(RR_GRAFICA_INICIO);
   inicio.setHours(0, 0, 0, 0);
 
   const porDia = {}; // 'yyyy-mm-dd' -> { piloto: n, control: n }
@@ -2090,7 +2096,7 @@ function calcularVolumenDiarioRR() {
 function calcularVolumenDiarioPorSucursalRR() {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
-  const inicio = new Date(RR_SNAPSHOT_FECHA);
+  const inicio = new Date(RR_GRAFICA_INICIO);
   inicio.setHours(0, 0, 0, 0);
 
   const porSucursalDia = {}; // 'NOMBRE' -> { 'yyyy-mm-dd': n }
