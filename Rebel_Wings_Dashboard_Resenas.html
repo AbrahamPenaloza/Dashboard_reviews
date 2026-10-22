@@ -959,7 +959,7 @@
 
     <div class="rr-chart-card" id="rrComparativoCard">
       <div class="rr-ctitle">Antes vs. después del lanzamiento — calificación de reseñas nuevas</div>
-      <div class="rr-csub">Promedio de las reseñas que entran en cada ventana (no del acumulado histórico). Antes = 2-sep a 14-oct · Después = desde el 15-oct. Portal Vallejo salió del piloto (no recibió los QR) y cuenta como control.</div>
+      <div class="rr-csub">Promedio de las reseñas que entran en cada ventana (no del acumulado histórico). Antes = 2-sep a 14-oct · Después = desde el 15-oct.</div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr>
           <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Grupo</th>
@@ -974,13 +974,20 @@
 
     <div class="rr-chart-card">
       <div class="rr-ctitle">Tendencia de rating — Piloto vs. Control</div>
-      <div class="rr-csub">Rating acumulado día a día desde el snapshot base (2-sep). Crece solo conforme entran nuevas reseñas.</div>
+      <div class="rr-csub" id="rrTrendSub"></div>
+      <div class="control-group" style="margin-bottom: 10px;">
+        <label for="rrTrendVista">Vista:</label>
+        <select id="rrTrendVista">
+          <option value="movil">Reseñas nuevas · promedio móvil 7 días</option>
+          <option value="acumulado">Rating acumulado (eje ajustado)</option>
+        </select>
+      </div>
       <div class="rr-legend-row">
         <span class="rr-li"><span class="rr-dot" style="background:#C8102E;"></span>Piloto</span>
         <span class="rr-li"><span class="rr-dot" style="background:#8A8378;"></span>Control</span>
       </div>
       <div style="position:relative;height:280px;">
-        <canvas id="rrTrendChart" role="img" aria-label="Gráfica de línea mostrando el rating actual de sucursales piloto y control al día de hoy, con una marca en la fecha de lanzamiento del 15 de octubre">Rating acumulado de piloto y control desde el snapshot base, con marca de lanzamiento el 15 de octubre.</canvas>
+        <canvas id="rrTrendChart" role="img" aria-label="Gráfica de línea con el rating de sucursales piloto y control día a día, con una marca en la fecha de lanzamiento del 15 de octubre">Tendencia de rating de piloto y control desde el snapshot base, con marca de lanzamiento el 15 de octubre.</canvas>
       </div>
     </div>
 
@@ -998,12 +1005,16 @@
 
     <div class="rr-chart-card">
       <div class="rr-ctitle">Reseñas nuevas por sucursal — tendencia</div>
-      <div class="rr-csub">Volumen diario por sucursal individual (piloto y control). Elige una sucursal para aislarla, o deja "Todas" para ver el panorama completo.</div>
-      <div class="control-group" style="margin-bottom: 10px;">
-        <label for="rrSucursalFilter">Sucursal:</label>
-        <select id="rrSucursalFilter">
-          <option value="">Todas las sucursales</option>
-        </select>
+      <div class="rr-csub">Volumen diario por sucursal. Un dropdown para las sucursales piloto (tonos rojos) y otro para las de control (tonos azul-gris): elige una sucursal para aislarla, deja «Todas» para ver el grupo completo u «Ocultar» para quitarlo de la gráfica.</div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;">
+        <div class="control-group">
+          <label for="rrSucursalPiloto"><span class="rr-dot" style="background:#C8102E;margin-right:6px;"></span>Sucursal piloto:</label>
+          <select id="rrSucursalPiloto"></select>
+        </div>
+        <div class="control-group">
+          <label for="rrSucursalControl"><span class="rr-dot" style="background:#5B7A99;margin-right:6px;"></span>Sucursal control:</label>
+          <select id="rrSucursalControl"></select>
+        </div>
       </div>
       <div style="position:relative;height:280px;">
         <canvas id="rrPorSucursalChart" role="img" aria-label="Gráfica de líneas mostrando el volumen diario de reseñas nuevas por sucursal individual, con opción de filtrar por una sola sucursal">Tendencia diaria de reseñas nuevas por sucursal desde el snapshot base.</canvas>
@@ -1030,7 +1041,7 @@
     </div>
 
     <div class="rr-note">
-      💡 R+R arrancó el 15-oct-2026. El histórico del 2-sep al 14-oct (snapshot base + reseñas capturadas) queda como línea base «antes»; todo lo que entre desde el 15-oct cuenta como «después». Portal Vallejo salió del piloto (no recibió los QR) y cuenta como control en todo el histórico, para comparar siempre las mismas sucursales. El rating actual combina antes + después.
+      💡 R+R arrancó el 15-oct-2026. El histórico del 2-sep al 14-oct (snapshot base + reseñas capturadas) queda como línea base «antes»; todo lo que entre desde el 15-oct cuenta como «después». El piloto incluye a Portal Vallejo. El rating actual combina antes + después.
     </div>
   </div>
 
@@ -1244,12 +1255,11 @@
 
 const RR_SNAPSHOT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('RR_Snapshot')}`;
 const RR_LANZAMIENTO = new Date(2026, 9, 15); // 15-oct-2026 (mes 0-indexado) — arranque oficial R+R
-// Sucursales sacadas del PILOTO (ej. no recibieron los QR). Pasan al grupo Control, en todo el histórico,
-// porque no tuvieron el tratamiento. Para sacarlas de la muestra por completo, ver bloque en loadRRData.
-const RR_EXCLUIDAS = ['Portal Vallejo'];
-function rrExcluida(nombre) {
-  const n = String(nombre || '').trim().toLowerCase();
-  return RR_EXCLUIDAS.some(x => n === x.toLowerCase() || n.includes(x.toLowerCase()));
+// Grupo forzado por nombre (tiene prioridad sobre lo que diga el Sheet).
+// Portal Vallejo forma parte del piloto R+R desde el 22-oct-2026.
+const RR_GRUPO_FORZADO = { 'portal vallejo': 'Piloto' };
+function rrGrupoForzado(nombre) {
+  return RR_GRUPO_FORZADO[String(nombre || '').trim().toLowerCase()] || null;
 }
 function rrCombinar(g) {
   const n = g.pre.n + g.post.n;
@@ -1418,6 +1428,7 @@ function calcularAgregadosRR() {
     return porSucursal[nombre];
   }
 
+  const baseAcc = { piloto: { suma: 0, n: 0 }, control: { suma: 0, n: 0 } };
   // Punto de partida: cada sucursal del snapshot aporta su rating base
   // ponderado por su volumen histórico, sembrando el bucket "pre" —
   // tanto en el acumulador de grupo como en el detalle por sucursal.
@@ -1429,6 +1440,8 @@ function calcularAgregadosRR() {
     const clave = info.grupo === 'Piloto' ? 'piloto' : 'control';
     acumulador[clave].pre.suma += info.ratingBase * info.totalBase;
     acumulador[clave].pre.n += info.totalBase;
+    baseAcc[clave].suma += info.ratingBase * info.totalBase;
+    baseAcc[clave].n += info.totalBase;
 
     const suc = asegurarSucursal(nombre, info.grupo);
     suc.pre.suma += info.ratingBase * info.totalBase;
@@ -1495,6 +1508,7 @@ function calcularAgregadosRR() {
       post: { rating: promedio(acumulador.control.post), n: acumulador.control.post.n },
     },
     detallePiloto,
+    base: { piloto: promedio(baseAcc.piloto), control: promedio(baseAcc.control) },
     actual: {
       piloto: { rating: rrCombinar(acumulador.piloto), n: acumulador.piloto.pre.n + acumulador.piloto.post.n },
       control: { rating: rrCombinar(acumulador.control), n: acumulador.control.pre.n + acumulador.control.post.n },
@@ -1516,6 +1530,85 @@ function calcularAgregadosRR() {
 // una vez que `agregados` (incluyendo detallePiloto) está listo.
 // ============================================================
 let rrTrendChartInstance = null;
+let rrSerieActual = null;
+
+function rrDeltaTxt(actual, base) {
+  if (actual == null || base == null) return '';
+  const d = actual - base;
+  return ` · ${d >= 0 ? '+' : ''}${d.toFixed(3)} vs base`;
+}
+
+// Ajusta el eje Y a la variación real de los datos (en vez de un 3.0–5.0 fijo),
+// para que cualquier cambio, por pequeño que sea, se vea.
+function rrAjusteY(valores) {
+  const v = valores.filter(x => x != null && Number.isFinite(x));
+  if (!v.length) return { min: 1, max: 5, dec: 1 };
+  let lo = Math.min(...v), hi = Math.max(...v);
+  if (hi - lo < 0.04) { const mid = (hi + lo) / 2; lo = mid - 0.02; hi = mid + 0.02; }
+  const pad = (hi - lo) * 0.15;
+  const min = Math.max(1, lo - pad), max = Math.min(5, hi + pad);
+  const rango = max - min;
+  return { min, max, dec: rango < 0.1 ? 3 : rango < 1 ? 2 : 1 };
+}
+
+function renderRRTrend() {
+  const s = rrSerieActual;
+  if (!s) return;
+  const sel = document.getElementById('rrTrendVista');
+  if (sel && !sel.dataset.listo) {
+    sel.addEventListener('change', renderRRTrend);
+    sel.dataset.listo = '1';
+  }
+  const esMovil = !sel || sel.value === 'movil';
+  const dP = esMovil ? s.pilotoMovil : s.pilotoSerie;
+  const dC = esMovil ? s.controlMovil : s.controlSerie;
+
+  document.getElementById('rrTrendSub').textContent = esMovil
+    ? 'Calificación promedio de las reseñas que entraron en los últimos 7 días (sin el histórico): se mueve con cada reseña nueva. La línea roja punteada marca el lanzamiento (15-oct). Pasa el cursor para ver cuántas reseñas respaldan cada punto.'
+    : 'Rating acumulado (snapshot del 2-sep + reseñas nuevas) con el eje ajustado a la variación real. Cambia poco porque el histórico pesa mucho: pasa el cursor para ver el cambio en milésimas contra la base.';
+
+  const y = rrAjusteY([...dP, ...dC]);
+  if (rrTrendChartInstance) rrTrendChartInstance.destroy();
+  const labels = s.labels;
+  rrTrendChartInstance = new Chart(document.getElementById('rrTrendChart'), {
+    plugins: [rrLaunchLinePlugin()],
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Piloto', data: dP, borderColor: '#C8102E', backgroundColor: '#C8102E', borderWidth: 2.5, pointRadius: (c) => c.dataIndex === labels.length - 1 ? 5 : 2.5, pointHoverRadius: 6, spanGaps: true, tension: 0.25 },
+        { label: 'Control', data: dC, borderColor: '#8A8378', backgroundColor: '#8A8378', borderWidth: 2, pointRadius: (c) => c.dataIndex === labels.length - 1 ? 5 : 2, pointHoverRadius: 6, spanGaps: true, tension: 0.25 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (it) => {
+              const v = it.parsed.y;
+              if (v == null) return `${it.dataset.label}: sin reseñas nuevas`;
+              if (esMovil) {
+                const n = (it.datasetIndex === 0 ? s.pilotoNMovil : s.controlNMovil)[it.dataIndex];
+                return `${it.dataset.label}: ${v.toFixed(2)} (${n} reseña${n === 1 ? '' : 's'} en 7 días)`;
+              }
+              const base = it.datasetIndex === 0 ? s.baseP : s.baseC;
+              const d = base != null ? v - base : null;
+              return `${it.dataset.label}: ${v.toFixed(3)}` + (d != null ? ` (${d >= 0 ? '+' : ''}${d.toFixed(3)} vs base)` : '');
+            },
+          },
+        },
+      },
+      scales: {
+        y: { min: y.min, max: y.max, ticks: { callback: v => Number(v).toFixed(y.dec) }, grid: { color: '#EAE0D5' } },
+        x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
+      },
+    },
+  });
+}
 let rrVolumeChartInstance = null;
 
 function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucursal) {
@@ -1531,46 +1624,15 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
   document.getElementById('rrPilotoRating').textContent =
     pilotoRating != null ? pilotoRating.toFixed(2) : '--';
   document.getElementById('rrPilotoFoot').textContent =
-    agregados.actual.piloto.n > 0 ? `${agregados.actual.piloto.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
+    agregados.actual.piloto.n > 0 ? `${agregados.actual.piloto.n.toLocaleString('es-MX')} reseñas acumuladas${rrDeltaTxt(pilotoRating, agregados.base.piloto)}` : 'Sin datos aún';
 
   document.getElementById('rrControlRating').textContent =
     controlRating != null ? controlRating.toFixed(2) : '--';
   document.getElementById('rrControlFoot').textContent =
-    agregados.actual.control.n > 0 ? `${agregados.actual.control.n.toLocaleString('es-MX')} reseñas acumuladas` : 'Sin datos aún';
+    agregados.actual.control.n > 0 ? `${agregados.actual.control.n.toLocaleString('es-MX')} reseñas acumuladas${rrDeltaTxt(controlRating, agregados.base.control)}` : 'Sin datos aún';
 
-  // Serie real día a día (snapshot -> hoy). Todavía no existen días
-  // futuros con datos, así que no se dibuja ningún tramo punteado por
-  // ahora — cuando pasen los días y loadRRData() se vuelva a ejecutar,
-  // esta misma serie crecerá sola con puntos reales adicionales.
-  const labels = serieDiaria.labels;
-  const pilotoSerie = serieDiaria.pilotoSerie;
-  const controlSerie = serieDiaria.controlSerie;
-
-  if (rrTrendChartInstance) {
-    rrTrendChartInstance.destroy();
-  }
-
-  const ctx = document.getElementById('rrTrendChart');
-  rrTrendChartInstance = new Chart(ctx, {
-    plugins: [rrLaunchLinePlugin()],
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Piloto', data: pilotoSerie, borderColor: '#C8102E', backgroundColor: '#C8102E', borderWidth: 2.5, pointRadius: (c) => c.dataIndex === labels.length - 1 ? 5 : 0, spanGaps: true, tension: 0.25 },
-        { label: 'Control', data: controlSerie, borderColor: '#8A8378', backgroundColor: '#8A8378', borderWidth: 2, pointRadius: (c) => c.dataIndex === labels.length - 1 ? 5 : 0, spanGaps: true, tension: 0.25 },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { min: 3.0, max: 5.0, ticks: { callback: v => v.toFixed(1) }, grid: { color: '#EAE0D5' } },
-        x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
-      },
-    },
-  });
+  rrSerieActual = serieDiaria;
+  renderRRTrend();
 
   rrRenderComparativo(agregados);
   renderRRDetalle(agregados.detallePiloto || []);
@@ -1607,51 +1669,76 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
 }
 
 let rrPorSucursalChartInstance = null;
+let rrVolumenPorSucursalActual = null;
 
-// Popula el dropdown una sola vez (igual que populateSucursalTendenciaFilter
-// en Redes Sociales) y dibuja/redibuja la gráfica de líneas por
-// sucursal, resaltando la seleccionada y atenuando el resto.
+// Piloto en familia roja (marca), control en familia azul-grisácea,
+// para distinguir el grupo de un vistazo aunque haya muchas líneas.
+function rrColorSucursal(nombre, grupo, solido) {
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 360;
+  const esPiloto = grupo === 'Piloto';
+  const h = esPiloto ? ((hash % 40) + 350) % 360 : 200 + (hash % 30);
+  const sat = esPiloto ? 75 : 35;
+  const l = esPiloto ? 38 + (hash % 14) : 36 + (hash % 18);
+  return solido ? `hsl(${h}, ${sat}%, ${l}%)` : `hsla(${h}, ${sat}%, ${l + 12}%, 0.30)`;
+}
+
+function rrPoblarSelectGrupo(select, series, grupo) {
+  if (!select || select.dataset.poblado) return;
+  const nombres = series.filter(x => x.grupo === grupo).map(x => x.nombre).sort();
+  const gl = grupo.toLowerCase();
+  select.innerHTML =
+    `<option value="">Todas las sucursales ${gl}</option>` +
+    `<option value="__ninguna__">Ocultar ${gl}</option>` +
+    nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+  select.dataset.poblado = '1';
+  select.addEventListener('change', () => renderRRPorSucursal(rrVolumenPorSucursalActual));
+}
+
+// Dibuja la gráfica de líneas por sucursal. Cada dropdown filtra solo su grupo:
+// "" = todas las del grupo, "__ninguna__" = ocultar el grupo, nombre = aislar esa sucursal.
 function renderRRPorSucursal(volumenPorSucursal) {
-  const select = document.getElementById('rrSucursalFilter');
-  if (select && !select.dataset.poblado) {
-    const nombres = volumenPorSucursal.series.map(s => s.nombre).sort();
-    select.innerHTML = '<option value="">Todas las sucursales</option>' +
-      nombres.map(n => `<option value="${n}">${n}</option>`).join('');
-    select.dataset.poblado = '1';
-    select.addEventListener('change', () => renderRRPorSucursal(volumenPorSucursal));
-  }
+  rrVolumenPorSucursalActual = volumenPorSucursal;
+  const selP = document.getElementById('rrSucursalPiloto');
+  const selC = document.getElementById('rrSucursalControl');
+  rrPoblarSelectGrupo(selP, volumenPorSucursal.series, 'Piloto');
+  rrPoblarSelectGrupo(selC, volumenPorSucursal.series, 'Control');
 
-  const sucursalFiltro = select ? select.value : '';
-  const seriesAMostrar = sucursalFiltro
-    ? volumenPorSucursal.series.filter(s => s.nombre === sucursalFiltro)
-    : volumenPorSucursal.series;
+  const valP = selP ? selP.value : '';
+  const valC = selC ? selC.value : '';
+  const elegir = (grupo, val) => {
+    const delGrupo = volumenPorSucursal.series.filter(x => x.grupo === grupo);
+    if (val === '__ninguna__') return [];
+    return val ? delGrupo.filter(x => x.nombre === val) : delGrupo;
+  };
+  const visibles = [...elegir('Piloto', valP), ...elegir('Control', valC)];
+  const esDestacada = (x) => (x.grupo === 'Piloto' ? valP : valC) !== '' && (x.grupo === 'Piloto' ? valP : valC) !== '__ninguna__';
+  const hayDestacada = visibles.some(esDestacada);
 
-  const datasets = seriesAMostrar.map(s => {
-    const destacada = !!sucursalFiltro;
-    let hash = 0;
-    for (let i = 0; i < s.nombre.length; i++) hash = (hash * 31 + s.nombre.charCodeAt(i)) % 360;
-    const colorSolido = `hsl(${hash}, 65%, 45%)`;
-    const colorTenue = `hsla(${hash}, 65%, 55%, 0.30)`;
+  // Las destacadas se dibujan al final para quedar por encima de las tenues.
+  const ordenadas = [...visibles.filter(x => !esDestacada(x)), ...visibles.filter(esDestacada)];
+  const datasets = ordenadas.map(x => {
+    const dest = esDestacada(x);
+    const solido = rrColorSucursal(x.nombre, x.grupo, true);
     return {
-      label: s.nombre,
-      data: s.valores,
-      borderColor: destacada ? colorSolido : colorTenue,
-      backgroundColor: colorSolido,
-      borderWidth: destacada ? 2.5 : 1,
-      pointRadius: destacada ? 3 : 0,
+      label: x.nombre,
+      _grupo: x.grupo,
+      _destacada: dest,
+      data: x.valores,
+      borderColor: dest ? solido : rrColorSucursal(x.nombre, x.grupo, false),
+      backgroundColor: solido,
+      borderWidth: dest ? 2.5 : 1,
+      pointRadius: dest ? 3 : 0,
       pointHitRadius: 8,
-      pointHoverRadius: destacada ? 5 : 4,
+      pointHoverRadius: dest ? 5 : 4,
       tension: 0.3,
       fill: false,
     };
   });
 
-  if (rrPorSucursalChartInstance) {
-    rrPorSucursalChartInstance.destroy();
-  }
+  if (rrPorSucursalChartInstance) rrPorSucursalChartInstance.destroy();
 
-  const ctx = document.getElementById('rrPorSucursalChart');
-  rrPorSucursalChartInstance = new Chart(ctx, {
+  rrPorSucursalChartInstance = new Chart(document.getElementById('rrPorSucursalChart'), {
     type: 'line',
     data: { labels: volumenPorSucursal.labels, datasets },
     options: {
@@ -1659,21 +1746,23 @@ function renderRRPorSucursal(volumenPorSucursal) {
       maintainAspectRatio: false,
       interaction: { mode: 'nearest', intersect: false },
       plugins: {
-        legend: { display: !!sucursalFiltro },
+        legend: {
+          display: hayDestacada,
+          labels: { filter: (item, data) => data.datasets[item.datasetIndex]._destacada },
+        },
         tooltip: {
           callbacks: {
-            title: (items) => items.length ? items[0].dataset.label : '',
+            title: (items) => items.length ? `${items[0].dataset.label} (${items[0].dataset._grupo})` : '',
             label: (item) => `Reseñas: ${item.formattedValue}`,
           },
         },
       },
       onClick: (evt, elements, chart) => {
         if (!elements.length) return;
-        const datasetIndex = elements[0].datasetIndex;
-        const nombre = chart.data.datasets[datasetIndex].label;
-        const sel = document.getElementById('rrSucursalFilter');
-        if (sel.value !== nombre) {
-          sel.value = nombre;
+        const ds = chart.data.datasets[elements[0].datasetIndex];
+        const sel = ds._grupo === 'Piloto' ? selP : selC;
+        if (sel && sel.value !== ds.label) {
+          sel.value = ds.label;
           renderRRPorSucursal(volumenPorSucursal);
         }
       },
@@ -1684,16 +1773,21 @@ function renderRRPorSucursal(volumenPorSucursal) {
     },
   });
 
+  const total = (x) => x.valores.reduce((a, b) => a + b, 0);
   const insightEl = document.getElementById('rrPorSucursalInsight');
-  if (sucursalFiltro) {
-    const total = seriesAMostrar[0] ? seriesAMostrar[0].valores.reduce((a, b) => a + b, 0) : 0;
-    insightEl.textContent = `${sucursalFiltro} registra ${total} reseña(s) nueva(s) desde el 2 de septiembre.`;
+  if (hayDestacada) {
+    insightEl.textContent = visibles.filter(esDestacada)
+      .map(x => `${x.nombre} (${x.grupo.toLowerCase()}) registra ${total(x)} reseña(s) nueva(s) desde el 2 de septiembre.`)
+      .join(' · ');
   } else {
-    const totales = volumenPorSucursal.series.map(s => ({ nombre: s.nombre, total: s.valores.reduce((a, b) => a + b, 0) }));
-    const top = totales.sort((a, b) => b.total - a.total)[0];
-    insightEl.textContent = top && top.total > 0
-      ? `${top.nombre} concentra el mayor número de reseñas nuevas: ${top.total}. Haz clic en una línea o usa el filtro para aislarla.`
-      : 'Aún no hay reseñas nuevas registradas en el periodo.';
+    const partes = [];
+    ['Piloto', 'Control'].forEach(g => {
+      const delGrupo = visibles.filter(x => x.grupo === g).map(x => ({ nombre: x.nombre, total: total(x) })).sort((a, b) => b.total - a.total);
+      if (delGrupo.length && delGrupo[0].total > 0) partes.push(`${g}: ${delGrupo[0].nombre} concentra el mayor número de reseñas nuevas (${delGrupo[0].total}).`);
+    });
+    insightEl.textContent = partes.length
+      ? partes.join(' ') + ' Haz clic en una línea o usa los filtros para aislarla.'
+      : (visibles.length ? 'Aún no hay reseñas nuevas registradas en el periodo.' : 'Los dos grupos están ocultos: elige «Todas» o una sucursal.');
   }
 }
 
@@ -1812,6 +1906,7 @@ function calcularSerieDiariaRR() {
   const pilotoSerie = [];
   const controlSerie = [];
   const acumulado = { piloto: { suma: base.piloto.suma, n: base.piloto.n }, control: { suma: base.control.suma, n: base.control.n } };
+  const dia = { piloto: [], control: [] }; // reseñas nuevas de cada día (para el promedio móvil)
 
   const cursor = new Date(inicio);
   while (cursor <= hoy) {
@@ -1827,11 +1922,31 @@ function calcularSerieDiariaRR() {
     labels.push(cursor.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }));
     pilotoSerie.push(acumulado.piloto.n > 0 ? acumulado.piloto.suma / acumulado.piloto.n : null);
     controlSerie.push(acumulado.control.n > 0 ? acumulado.control.suma / acumulado.control.n : null);
+    dia.piloto.push(deHoy ? deHoy.piloto : { suma: 0, n: 0 });
+    dia.control.push(deHoy ? deHoy.control : { suma: 0, n: 0 });
 
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  return { labels, pilotoSerie, controlSerie };
+  // Promedio móvil de 7 días del rating de las reseñas NUEVAS (sin el histórico):
+  // reacciona de inmediato a cada reseña, a diferencia del acumulado.
+  function movil(arr) {
+    const out = [], nn = [];
+    for (let i = 0; i < arr.length; i++) {
+      let sum = 0, n = 0;
+      for (let j = Math.max(0, i - 6); j <= i; j++) { sum += arr[j].suma; n += arr[j].n; }
+      out.push(n > 0 ? sum / n : null);
+      nn.push(n);
+    }
+    return { out, nn };
+  }
+  const mp = movil(dia.piloto), mc = movil(dia.control);
+  return {
+    labels, pilotoSerie, controlSerie,
+    pilotoMovil: mp.out, controlMovil: mc.out, pilotoNMovil: mp.nn, controlNMovil: mc.nn,
+    baseP: base.piloto.n > 0 ? base.piloto.suma / base.piloto.n : null,
+    baseC: base.control.n > 0 ? base.control.suma / base.control.n : null,
+  };
 }
 
 // Construye el conteo DIARIO (no acumulado) de reseñas nuevas por grupo,
@@ -1937,9 +2052,9 @@ function calcularVolumenDiarioPorSucursalRR() {
 // en el Promise.all de arranque del dashboard.
 async function loadRRData() {
   await Promise.all([loadRRSnapshot(), loadRRReviews(), loadRRGrupos()]);
-  // Portal Vallejo (sin QR) sale del piloto y pasa a Control, tanto en snapshot como en el mapa de grupos.
-  Object.keys(rrSnapshot).forEach(k => { if (rrExcluida(k) && rrSnapshot[k].grupo === 'Piloto') rrSnapshot[k].grupo = 'Control'; });
-  Object.keys(rrGrupoPorSucursal).forEach(k => { if (rrExcluida(k) && rrGrupoPorSucursal[k] === 'Piloto') rrGrupoPorSucursal[k] = 'Control'; });
+  // Grupos forzados (ej. Portal Vallejo = Piloto), tanto en snapshot como en el mapa de Sucursales.
+  Object.keys(rrSnapshot).forEach(k => { const g = rrGrupoForzado(k); if (g && rrSnapshot[k]) rrSnapshot[k].grupo = g; });
+  Object.keys(rrGrupoPorSucursal).forEach(k => { const g = rrGrupoForzado(k); if (g) rrGrupoPorSucursal[k] = g; });
   const agregados = calcularAgregadosRR();
   const serieDiaria = calcularSerieDiariaRR();
   const volumenDiario = calcularVolumenDiarioRR();
