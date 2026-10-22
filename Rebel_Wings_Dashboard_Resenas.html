@@ -971,6 +971,17 @@
         </tr></thead>
         <tbody id="rrComparativoBody"></tbody>
       </table>
+      <div class="rr-ctitle" style="margin-top:18px;font-size:14px;">Reseñas positivas — % del total de reseñas nuevas</div>
+      <div class="rr-csub">Positiva = 4 o 5 estrellas. Se muestra el porcentaje y, entre paréntesis, cuántas positivas hay del total de cada ventana. El cambio va en puntos porcentuales.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Grupo</th>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Antes (2-sep → 14-oct)</th>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Después (desde 15-oct)</th>
+          <th style="text-align:left;font-size:11px;text-transform:uppercase;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;">Cambio (pts)</th>
+        </tr></thead>
+        <tbody id="rrPositivasBody"></tbody>
+      </table>
       <div class="rr-note" style="margin-top:12px;">Con pocas reseñas nuevas el promedio se mueve mucho: las celdas con menos de 30 reseñas aparecen en cursiva y deben leerse como tendencia, no como resultado.</div>
     </div>
 
@@ -996,6 +1007,10 @@
     <div class="rr-chart-card">
       <div class="rr-ctitle">Reseñas nuevas por día — Piloto vs. Control</div>
       <div class="rr-csub">Volumen diario, no acumulado. Esta gráfica se mueve mucho antes que el rating: útil para ver el efecto de la campaña sin esperar a que cambie la calificación.</div>
+      <div class="control-group" style="margin-bottom:8px;">
+        <label for="rrMetricaVol">Mostrar:</label>
+        <select id="rrMetricaVol" class="rr-metrica-sel"><option value="todas">Todas las reseñas</option><option value="pos">Solo positivas (4-5★)</option></select>
+      </div>
       <div class="rr-legend-row">
         <span class="rr-li"><span class="rr-dot" style="background:#C8102E;"></span>Piloto</span>
         <span class="rr-li"><span class="rr-dot" style="background:#8A8378;"></span>Control</span>
@@ -1009,6 +1024,10 @@
       <div class="rr-ctitle">Reseñas nuevas por sucursal — tendencia</div>
       <div class="rr-csub">Volumen diario por sucursal. Un dropdown para las sucursales piloto (tonos rojos) y otro para las de control (tonos azul-gris): elige una sucursal para aislarla, deja «Todas» para ver el grupo completo u «Ocultar» para quitarlo de la gráfica.</div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;">
+        <div class="control-group">
+          <label for="rrMetricaSuc">Mostrar:</label>
+          <select id="rrMetricaSuc" class="rr-metrica-sel"><option value="todas">Todas las reseñas</option><option value="pos">Solo positivas (4-5★)</option></select>
+        </div>
         <div class="control-group">
           <label for="rrSucursalPiloto"><span class="rr-dot" style="background:#C8102E;margin-right:6px;"></span>Sucursal piloto:</label>
           <select id="rrSucursalPiloto"></select>
@@ -1035,6 +1054,7 @@
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Reseñas</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating pre-lanzamiento</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Rating post-lanzamiento</th>
+            <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Positivas post (4-5★)</th>
             <th style="text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;color:#6B5D52;border-bottom:2px solid #EAE0D5;padding:8px 10px;font-weight:700;">Atención</th>
           </tr>
         </thead>
@@ -1294,6 +1314,7 @@ const RR_SNAPSHOT_FECHA = new Date(2026, 8, 2); // 2-sep-2026, fecha del snapsho
 let rrSnapshot = {}; // 'Nombre de sucursal' -> { grupo, ratingBase, totalBase }
 let rrReviews = [];  // filas de Reseñas desde RR_SNAPSHOT_FECHA en adelante
 let rrGrupoPorSucursal = {}; // 'Nombre de sucursal' -> 'Piloto' | 'Control' (de Sucursales, respaldo si falta en snapshot)
+let rrSoloPositivas = false; // gráficas de volumen: false = todas, true = solo 4-5★
 let rrReviewsRaw = [];       // filas de Reseñas sin filtrar (antes de la reconciliación con Google)
 let rrTotalGoogle = {};      // 'Nombre de sucursal' -> Total_Resenas_Google actual (de Sucursales)
 let rrAnomalias = [];        // sucursales con filas que no reconcilian con el crecimiento de Google
@@ -1429,8 +1450,8 @@ function calcularAgregadosRR() {
 
   // Solo reseñas NUEVAS (sin snapshot base) por ventana, para el comparativo antes/después.
   const nuevasAcc = {
-    piloto: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
-    control: { pre: { suma: 0, n: 0 }, post: { suma: 0, n: 0 } },
+    piloto: { pre: { suma: 0, n: 0, pos: 0, cinco: 0 }, post: { suma: 0, n: 0, pos: 0, cinco: 0 } },
+    control: { pre: { suma: 0, n: 0, pos: 0, cinco: 0 }, post: { suma: 0, n: 0, pos: 0, cinco: 0 } },
   };
   // Detalle por sucursal: 'NOMBRE' -> { grupo, pre: {suma,n}, post: {suma,n} }
   const porSucursal = {};
@@ -1440,7 +1461,7 @@ function calcularAgregadosRR() {
       porSucursal[nombre] = {
         grupo,
         pre: { suma: 0, n: 0 },
-        post: { suma: 0, n: 0 },
+        post: { suma: 0, n: 0, pos: 0, cinco: 0 },
       };
     }
     return porSucursal[nombre];
@@ -1486,12 +1507,18 @@ function calcularAgregadosRR() {
 
     nuevasAcc[clave][ventana].suma += calificacion;
     nuevasAcc[clave][ventana].n += 1;
+    if (calificacion >= 4) nuevasAcc[clave][ventana].pos += 1;
+    if (calificacion >= 5) nuevasAcc[clave][ventana].cinco += 1;
     acumulador[clave][ventana].suma += calificacion;
     acumulador[clave][ventana].n += 1;
 
     const suc = asegurarSucursal(nombre, grupo);
     suc[ventana].suma += calificacion;
     suc[ventana].n += 1;
+    if (ventana === 'post') {
+      if (calificacion >= 4) suc.post.pos += 1;
+      if (calificacion >= 5) suc.post.cinco += 1;
+    }
   });
 
   function promedio(bucket) {
@@ -1512,6 +1539,8 @@ function calcularAgregadosRR() {
         nPre: s.pre.n,
         ratingPost: promedio(s.post),
         nPost: s.post.n,
+        posPost: s.post.pos,
+        cincoPost: s.post.cinco,
       };
     })
     .sort((a, b) => (a.ratingActual ?? 999) - (b.ratingActual ?? 999));
@@ -1532,8 +1561,10 @@ function calcularAgregadosRR() {
       control: { rating: rrCombinar(acumulador.control), n: acumulador.control.pre.n + acumulador.control.post.n },
     },
     nuevas: {
-      piloto: { pre: promedio(nuevasAcc.piloto.pre), nPre: nuevasAcc.piloto.pre.n, post: promedio(nuevasAcc.piloto.post), nPost: nuevasAcc.piloto.post.n },
-      control: { pre: promedio(nuevasAcc.control.pre), nPre: nuevasAcc.control.pre.n, post: promedio(nuevasAcc.control.post), nPost: nuevasAcc.control.post.n },
+      piloto: { pre: promedio(nuevasAcc.piloto.pre), nPre: nuevasAcc.piloto.pre.n, post: promedio(nuevasAcc.piloto.post), nPost: nuevasAcc.piloto.post.n,
+        posPre: nuevasAcc.piloto.pre.pos, posPost: nuevasAcc.piloto.post.pos, cincoPre: nuevasAcc.piloto.pre.cinco, cincoPost: nuevasAcc.piloto.post.cinco },
+      control: { pre: promedio(nuevasAcc.control.pre), nPre: nuevasAcc.control.pre.n, post: promedio(nuevasAcc.control.post), nPost: nuevasAcc.control.post.n,
+        posPre: nuevasAcc.control.pre.pos, posPost: nuevasAcc.control.post.pos, cincoPre: nuevasAcc.control.pre.cinco, cincoPost: nuevasAcc.control.post.cinco },
     },
     nSucursales: {
       piloto: Object.values(porSucursal).filter(x => x.grupo === 'Piloto').length,
@@ -1684,6 +1715,21 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
   });
 
   renderRRPorSucursal(volumenPorSucursal);
+
+  ['rrMetricaVol', 'rrMetricaSuc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = rrSoloPositivas ? 'pos' : 'todas';
+    if (!el.dataset.listo) {
+      el.addEventListener('change', () => {
+        rrSoloPositivas = el.value === 'pos';
+        ['rrMetricaVol', 'rrMetricaSuc'].forEach(o => { const e2 = document.getElementById(o); if (e2) e2.value = el.value; });
+        // Solo se recalculan las dos gráficas de volumen; el resto no depende de este filtro.
+        renderRRSection(calcularAgregadosRR(), calcularSerieDiariaRR(), calcularVolumenDiarioRR(), calcularVolumenDiarioPorSucursalRR());
+      });
+      el.dataset.listo = '1';
+    }
+  });
 }
 
 let rrPorSucursalChartInstance = null;
@@ -1831,6 +1877,29 @@ function rrRenderComparativo(agregados) {
   };
   document.getElementById('rrComparativoBody').innerHTML =
     fila('Piloto', '#C8102E', agregados.nuevas.piloto) + fila('Control', '#8A8378', agregados.nuevas.control);
+
+  // % de positivas (4-5★) y solo 5★ sobre el total de reseñas nuevas de cada ventana.
+  const tdBase = 'padding:9px 10px;border-bottom:1px solid #EAE0D5;';
+  const celdaPct = (k, n) => {
+    if (!n) return `<td style="${tdBase}color:#8A8378;">Sin reseñas aún</td>`;
+    return `<td style="${tdBase}${n < 30 ? 'font-style:italic;color:#6B5D52;' : ''}"><strong>${(100 * k / n).toFixed(0)}%</strong> <small>(${k.toLocaleString('es-MX')} de ${n.toLocaleString('es-MX')})</small></td>`;
+  };
+  const filaPct = (nombre, color, g, kPre, kPost) => {
+    let cambio = '<span style="color:#8A8378;">—</span>';
+    if (g.nPre && g.nPost) {
+      const d = 100 * kPost / g.nPost - 100 * kPre / g.nPre;
+      const c = d > 0.5 ? '#1D9E75' : d < -0.5 ? '#D85A30' : '#8A8378';
+      cambio = `<strong style="color:${c};">${d >= 0 ? '+' : ''}${d.toFixed(0)} pts</strong>`;
+    }
+    return `<tr><td style="${tdBase}font-weight:700;"><span class="rr-dot" style="background:${color};margin-right:6px;"></span>${nombre}</td>${celdaPct(kPre, g.nPre)}${celdaPct(kPost, g.nPost)}<td style="${tdBase}">${cambio}</td></tr>`;
+  };
+  const np = agregados.nuevas.piloto, nc = agregados.nuevas.control;
+  const bodyPos = document.getElementById('rrPositivasBody');
+  if (bodyPos) bodyPos.innerHTML =
+    filaPct('Piloto · 4-5★', '#C8102E', np, np.posPre, np.posPost) +
+    filaPct('Control · 4-5★', '#8A8378', nc, nc.posPre, nc.posPost) +
+    filaPct('Piloto · solo 5★', '#C8102E', np, np.cincoPre, np.cincoPost) +
+    filaPct('Control · solo 5★', '#8A8378', nc, nc.cincoPre, nc.cincoPost);
 }
 
 function renderRRDetalle(detalle) {
@@ -1838,7 +1907,7 @@ function renderRRDetalle(detalle) {
   if (!tbody) return;
 
   if (!detalle.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:12px 10px;color:#6B5D52;">Sin datos de sucursales piloto todavía.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:12px 10px;color:#6B5D52;">Sin datos de sucursales piloto todavía.</td></tr>';
     return;
   }
 
@@ -1863,6 +1932,7 @@ function renderRRDetalle(detalle) {
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">${nReseñas}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#6B5D52;">${ratingPreTxt}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#6B5D52;">${ratingPost}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;color:#6B5D52;">${s.nPost > 0 ? `<strong>${(100 * s.posPost / s.nPost).toFixed(0)}%</strong> <small>(${s.posPost} de ${s.nPost})</small>` : 'Sin datos aún'}</td>
         <td style="padding:9px 10px;border-bottom:1px solid #EAE0D5;">
           <span style="display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:12px;padding:2px 9px;border-radius:6px;background:${colorAtencion}1F;color:${colorAtencion};">
             ${textoAtencion}
@@ -1988,6 +2058,7 @@ function calcularVolumenDiarioRR() {
 
     const fecha = parseFecha(row['Fecha']);
     if (!fecha) return;
+    if (rrSoloPositivas && !(Number(row['Calificación']) >= 4)) return;
 
     const clave = fecha.getFullYear() + '-' + String(fecha.getMonth() + 1).padStart(2, '0') + '-' + String(fecha.getDate()).padStart(2, '0');
     if (!porDia[clave]) porDia[clave] = { piloto: 0, control: 0 };
@@ -2041,6 +2112,7 @@ function calcularVolumenDiarioPorSucursalRR() {
     if (!nombre || !sucursalesConocidas.has(nombre)) return;
     const fecha = parseFecha(row['Fecha']);
     if (!fecha) return;
+    if (rrSoloPositivas && !(Number(row['Calificación']) >= 4)) return;
     const clave = fecha.getFullYear() + '-' + String(fecha.getMonth() + 1).padStart(2, '0') + '-' + String(fecha.getDate()).padStart(2, '0');
     if (!porSucursalDia[nombre]) porSucursalDia[nombre] = {};
     porSucursalDia[nombre][clave] = (porSucursalDia[nombre][clave] || 0) + 1;
