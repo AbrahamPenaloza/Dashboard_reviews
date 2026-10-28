@@ -920,8 +920,9 @@
     .rr-launch-strip .rr-badge{background:rgba(255,255,255,0.18);border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;}
     .rr-launch-strip .rr-date{font-size:17px;font-weight:700;}
     .rr-launch-strip .rr-days{margin-left:auto;font-size:13px;opacity:0.92;}
-    .rr-kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:24px;}
+    .rr-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;}
     .rr-kpi-card{background:white;border:1px solid #EAE0D5;border-radius:14px;padding:16px 18px;}
+    .rr-kpi-card.rr-total{border-left:5px solid #2B2320;}
     .rr-kpi-card.rr-piloto{border-left:5px solid #C8102E;}
     .rr-kpi-card.rr-control{border-left:5px solid #8A8378;}
     .rr-kpi-card .rr-label{font-size:12px;color:#6B5D52;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
@@ -947,6 +948,11 @@
     </div>
 
     <div class="rr-kpi-grid">
+      <div class="rr-kpi-card rr-total">
+        <div class="rr-label" id="rrTotalLabel">Total (rating actual)</div>
+        <div class="rr-value" id="rrTotalRating">--</div>
+        <div class="rr-foot" id="rrTotalFoot">Cargando…</div>
+      </div>
       <div class="rr-kpi-card rr-piloto">
         <div class="rr-label" id="rrPilotoLabel">Piloto (rating actual)</div>
         <div class="rr-value" id="rrPilotoRating">--</div>
@@ -1557,8 +1563,16 @@ function calcularAgregadosRR() {
       post: { rating: promedio(acumulador.control.post), n: acumulador.control.post.n },
     },
     detallePiloto,
-    base: { piloto: promedio(baseAcc.piloto), control: promedio(baseAcc.control) },
+    base: {
+      piloto: promedio(baseAcc.piloto), control: promedio(baseAcc.control),
+      total: (baseAcc.piloto.n + baseAcc.control.n) > 0 ? (baseAcc.piloto.suma + baseAcc.control.suma) / (baseAcc.piloto.n + baseAcc.control.n) : null,
+    },
     actual: {
+      total: (function () {
+        const n = acumulador.piloto.pre.n + acumulador.piloto.post.n + acumulador.control.pre.n + acumulador.control.post.n;
+        const suma = acumulador.piloto.pre.suma + acumulador.piloto.post.suma + acumulador.control.pre.suma + acumulador.control.post.suma;
+        return { rating: n > 0 ? suma / n : null, n };
+      })(),
       piloto: { rating: rrCombinar(acumulador.piloto), n: acumulador.piloto.pre.n + acumulador.piloto.post.n },
       control: { rating: rrCombinar(acumulador.control), n: acumulador.control.pre.n + acumulador.control.post.n },
     },
@@ -1668,6 +1682,14 @@ function renderRRSection(agregados, serieDiaria, volumenDiario, volumenPorSucurs
   const diffDays = Math.ceil((launch - today) / (1000 * 60 * 60 * 24));
   document.getElementById('rrDaysCounter').textContent =
     diffDays > 0 ? `Faltan ${diffDays} días` : `Campaña en curso · día ${Math.floor((today - launch) / 86400000) + 1}`;
+
+  const totalRating = agregados.actual.total.rating;
+  document.getElementById('rrTotalLabel').textContent =
+    `Total — ${agregados.nSucursales.piloto + agregados.nSucursales.control} sucursales (rating actual)`;
+  document.getElementById('rrTotalRating').textContent =
+    totalRating != null ? totalRating.toFixed(2) : '--';
+  document.getElementById('rrTotalFoot').textContent =
+    agregados.actual.total.n > 0 ? `${agregados.actual.total.n.toLocaleString('es-MX')} reseñas acumuladas${rrDeltaTxt(totalRating, agregados.base.total)}` : 'Sin datos aún';
 
   const pilotoRating = agregados.actual.piloto.rating;
   const controlRating = agregados.actual.control.rating;
