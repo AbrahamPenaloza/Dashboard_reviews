@@ -338,6 +338,10 @@
   .btn-segu.cerrar { background: #2e7d32; color: white; }
   .btn-segu.cerrar:hover { background: #1b5e20; }
   .btn-segu:disabled { background: #ccc; cursor: not-allowed; }
+  .segu-vale-box { background: #fffaf0; border: 1px dashed #e9a23b; border-radius: 6px; padding: 10px 12px; }
+  .segu-vale-box .segu-actions-row { margin-top: 6px; }
+  .segu-vale-hint { font-size: 11px; color: #8a5a00; margin-top: 6px; }
+  .segu-vale-line { font-size: 12px; color: #8a5a00; background: #fff8ec; border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
 
   .segu-rank-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .segu-rank-table th, .segu-rank-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
@@ -4137,6 +4141,19 @@ async function loadRRData() {
             <div class="segu-field-label">Cómo se resolvió / si la acción fue correcta</div>
             <textarea id="seguResolucion-${quejaId}" placeholder="Describe la resolución final y si la acción del supervisor fue adecuada…"></textarea>
           </div>
+          <div class="segu-vale-box">
+            <div class="segu-field-label">Vale otorgado (opcional)</div>
+            <div class="segu-actions-row">
+              <select id="seguValeTipo-${quejaId}">
+                <option value="">Sin vale</option>
+                <option value="Bebida">Bebida</option>
+                <option value="Postre">Postre</option>
+                <option value="Platillo">Platillo (mismo del ticket)</option>
+              </select>
+              <input type="text" id="seguValeFolio-${quejaId}" placeholder="Folio del vale" />
+            </div>
+            <div class="segu-vale-hint">Solo para quejas post visita, según la tabla del protocolo. Vigencia: 30 días desde el cierre (se calcula automáticamente).</div>
+          </div>
           <div class="segu-actions-row">
             <button class="btn-segu cerrar" onclick="cerrarQueja('${quejaId}')">Cerrar caso</button>
           </div>
@@ -4154,7 +4171,8 @@ async function loadRRData() {
               ${enAlerta ? `<span class="segu-alert-badge">Sin atender ${dias}d</span>` : ''}
             </div>
           </div>
-          <div class="segu-meta">${fecha} · ${q['Canal_Origen'] || ''} · ${q['Categoría'] || ''} · Zona: ${q.Zona || mapaZona[q.Sucursal] || ''}</div>
+          <div class="segu-meta">${fecha} · ${q['Canal_Origen'] || ''} · ${q['Categoría'] || ''} · Zona: ${q.Zona || mapaZona[q.Sucursal] || ''}${q['Prioridad'] ? ' · Prioridad: ' + q['Prioridad'] : ''}</div>
+          ${q['Vale_Folio'] ? `<div class="segu-vale-line">🎟 Vale ${q['Vale_Tipo'] || ''} · Folio ${q['Vale_Folio']}${(() => { const v = parseFechaFlexible(q['Vale_Vence']); return v ? ' · vence ' + v.toLocaleDateString('es-MX') : ''; })()}</div>` : ''}
           <div class="segu-desc">${q['Descripción'] || ''}</div>
           ${q['Notas_Seguimiento'] ? `<div class="segu-notas">${q['Notas_Seguimiento']}</div>` : ''}
           <div class="segu-actions">${botonesAccion}</div>
@@ -4163,7 +4181,7 @@ async function loadRRData() {
     }).join('') + (filtered.length > 50 ? `<div class="placeholder">Mostrando 50 de ${filtered.length}.</div>` : '');
   }
 
-  async function enviarAccionSeguimiento(quejaId, accion, nombre, textoExtra, boton) {
+  async function enviarAccionSeguimiento(quejaId, accion, nombre, textoExtra, boton, extra = {}) {
     boton.disabled = true;
     const textoOriginal = boton.textContent;
     boton.textContent = 'Guardando…';
@@ -4172,7 +4190,7 @@ async function loadRRData() {
       const response = await fetch(SEGUIMIENTO_WEBAPP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ quejaId, accion, nombre, textoExtra, token: APROBACION_TOKEN }),
+        body: JSON.stringify(Object.assign({ quejaId, accion, nombre, textoExtra, token: APROBACION_TOKEN }, extra)),
       });
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido.');
@@ -4185,6 +4203,13 @@ async function loadRRData() {
           ? `Cerrado por ${nombre}. Resolución: ${textoExtra}`
           : `En proceso por ${nombre}. Acción a tomar: ${textoExtra}`;
         fila['Notas_Seguimiento'] = fila['Notas_Seguimiento'] ? (fila['Notas_Seguimiento'] + '\n' + notaNueva) : notaNueva;
+        if (accion === 'cerrar' && extra.valeTipo && extra.valeFolio) {
+          const vence = new Date();
+          vence.setDate(vence.getDate() + 30);
+          fila['Vale_Tipo'] = extra.valeTipo;
+          fila['Vale_Folio'] = extra.valeFolio;
+          fila['Vale_Vence'] = vence;
+        }
       }
       updateSeguKpis();
       updateSeguRanking();
@@ -4231,8 +4256,21 @@ async function loadRRData() {
       return;
     }
 
+    const valeTipoEl = document.getElementById('seguValeTipo-' + quejaId);
+    const valeFolioEl = document.getElementById('seguValeFolio-' + quejaId);
+    const valeTipo = valeTipoEl ? valeTipoEl.value : '';
+    const valeFolio = valeFolioEl ? valeFolioEl.value.trim() : '';
+    if (valeTipo && !valeFolio) {
+      alert('Escribe el folio del vale, o elige "Sin vale".');
+      return;
+    }
+    if (!valeTipo && valeFolio) {
+      alert('Elige el tipo de vale (bebida, postre o platillo), o borra el folio.');
+      return;
+    }
+
     const boton = document.querySelector(`#segu-card-${quejaId} .btn-segu.cerrar`);
-    enviarAccionSeguimiento(quejaId, 'cerrar', zona, resolucionTexto, boton);
+    enviarAccionSeguimiento(quejaId, 'cerrar', zona, resolucionTexto, boton, valeTipo ? { valeTipo, valeFolio } : {});
   }
 
   // ============================================
@@ -4334,7 +4372,8 @@ async function loadRRData() {
   function renderChartPorCategoria(datos) {
     const porCategoria = {};
     datos.forEach(q => {
-      const cat = q['Categoría'] || 'Sin clasificar';
+      let cat = q['Categoría'] || 'Sin clasificar';
+      if (cat === 'Otro') cat = 'Otros'; // unifica el histórico con el nombre actual
       porCategoria[cat] = (porCategoria[cat] || 0) + 1;
     });
     const labels = Object.keys(porCategoria).sort((a, b) => porCategoria[b] - porCategoria[a]);
@@ -4620,7 +4659,7 @@ async function loadRRData() {
 
   function insightCategoria(datos) {
     const porCategoria = {};
-    datos.forEach(q => { const c = q['Categoría'] || 'Sin clasificar'; porCategoria[c] = (porCategoria[c] || 0) + 1; });
+    datos.forEach(q => { let c = q['Categoría'] || 'Sin clasificar'; if (c === 'Otro') c = 'Otros'; porCategoria[c] = (porCategoria[c] || 0) + 1; });
     const total = datos.length;
     const ordenado = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
     if (ordenado.length === 0) return '<strong>Lectura:</strong> Sin datos suficientes en este periodo.';
@@ -4783,7 +4822,16 @@ async function loadRRData() {
               <option value="Propinas">Propinas</option>
               <option value="Experiencias">Experiencias</option>
               <option value="Accesibilidad">Accesibilidad</option>
-              <option value="Otro">Otro</option>
+              <option value="Otros">Otros</option>
+            </select>
+          </div>
+          <div>
+            <label>Prioridad</label>
+            <select id="contactoNuevoPrioridad">
+              <option value="Crítica">Crítica — tema sensible (fauna, alimentos en mal estado, legal/Profeco, accesibilidad)</option>
+              <option value="Alta">Alta — sentimiento negativo</option>
+              <option value="Media" selected>Media — sentimiento neutral</option>
+              <option value="Baja">Baja — sentimiento positivo</option>
             </select>
           </div>
         </div>
@@ -4859,6 +4907,7 @@ async function loadRRData() {
     const sucursal = document.getElementById('contactoNuevoSucursal').value.trim();
     const zona = document.getElementById('contactoNuevoZona').value;
     const categoria = document.getElementById('contactoNuevoCategoria').value;
+    const prioridad = document.getElementById('contactoNuevoPrioridad').value;
     const descripcion = document.getElementById('contactoNuevoDescripcion').value.trim();
 
     if (!nombre) { alert('Escribe tu nombre antes de continuar.'); return; }
@@ -4876,7 +4925,7 @@ async function loadRRData() {
         body: JSON.stringify({
           accion: 'registrar_contacto_meta',
           modo: 'crear',
-          folioOriginal: folio, nombre, canal, sucursal, zona, categoria, descripcion,
+          folioOriginal: folio, nombre, canal, sucursal, zona, categoria, prioridad, descripcion,
           token: APROBACION_TOKEN,
         }),
       });
