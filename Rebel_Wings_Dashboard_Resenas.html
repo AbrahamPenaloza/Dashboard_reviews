@@ -520,12 +520,13 @@
           <option value="Facebook">Facebook</option>
           <option value="Instagram">Instagram</option>
           <option value="WhatsApp">WhatsApp</option>
+          <option value="TikTok">TikTok</option>
           <option value="Otro">Otro</option>
         </select>
       </div>
     </div>
     <p style="font-size:12px; color:#999; margin-top:-8px; margin-bottom:16px;">
-      Esta sección solo incluye quejas de redes sociales/WhatsApp — las reseñas de Google se gestionan aparte en 📮 Respuestas a Reseñas (pestaña Reseñas Google), ya que ahí se espera contacto del cliente vía folio.
+      Esta sección solo incluye quejas de redes sociales (Facebook, Instagram, TikTok) y WhatsApp — las reseñas de Google se gestionan aparte en 📮 Respuestas a Reseñas (pestaña Reseñas Google), ya que ahí se espera contacto del cliente vía folio.
     </p>
     <div id="seguList">
       <div class="placeholder">Cargando quejas…</div>
@@ -901,7 +902,7 @@
   <div class="section">
     <h2>📞 Registrar Contacto por Redes Sociales</h2>
     <p style="font-size:13px; color:#666; margin-bottom:16px;">
-      Cuando un cliente escriba por Instagram, Facebook o WhatsApp mencionando un folio (ej. RW-EDI-0374), búscalo aquí. Si el folio ya existe (viene de una reseña de Google), se activa como queja de seguimiento — sin duplicarla — porque el contacto real del cliente es lo que dispara la atención, incluso si ya estaba cerrada. Si no existe, puedes registrarla como una queja nueva.
+      Cuando un cliente escriba por Instagram, Facebook, TikTok o WhatsApp mencionando un folio (ej. RW-EDI-0374), búscalo aquí. Si el folio ya existe (viene de una reseña de Google), se activa como queja de seguimiento — sin duplicarla — porque el contacto real del cliente es lo que dispara la atención, incluso si ya estaba cerrada. Si no existe, puedes registrarla como una queja nueva.
     </p>
     <div class="contacto-buscar-row">
       <input type="text" id="contactoFolioInput" placeholder="Folio (ej. RW-EDI-0374)" />
@@ -4722,6 +4723,7 @@ async function loadRRData() {
               <option value="Instagram">Instagram</option>
               <option value="Facebook">Facebook</option>
               <option value="WhatsApp">WhatsApp</option>
+          <option value="TikTok">TikTok</option>
             </select>
           </div>
         </div>
@@ -4755,6 +4757,7 @@ async function loadRRData() {
               <option value="Instagram">Instagram</option>
               <option value="Facebook">Facebook</option>
               <option value="WhatsApp">WhatsApp</option>
+          <option value="TikTok">TikTok</option>
             </select>
           </div>
           <div>
