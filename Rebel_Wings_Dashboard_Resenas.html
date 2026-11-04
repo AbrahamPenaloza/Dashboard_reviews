@@ -1157,10 +1157,10 @@
   </div>
 
   <div class="section">
-    <h2 id="rwTituloEvo">Alinfinitas registradas y canjeadas por mes</h2>
-    <p class="rw-sub">Cada canje se atribuye al mes de su ticket. Debajo de cada mes va el % de canje. El mes en curso se ve más claro porque todavía puede cambiar.</p>
+    <h2 id="rwTituloEvo">Tickets registrados por mes</h2>
+    <p class="rw-sub">Un registro es un ticket dado de alta en el programa. Respeta los filtros de zona y sucursal de arriba. El mes en curso se ve más claro porque todavía puede cambiar.</p>
     <div class="chart-container">
-      <canvas id="rwChartEvo" role="img" aria-label="Alinfinitas registradas y canjeadas por mes"></canvas>
+      <canvas id="rwChartEvo" role="img" aria-label="Tickets registrados por mes"></canvas>
     </div>
   </div>
 
@@ -1173,11 +1173,11 @@
       <div class="chart-insight">Total del programa. El registro de usuarios no se separa por sucursal.</div>
     </div>
     <div class="chart-card">
-      <h3>% de canje por zona</h3>
+      <h3>% de tickets registrados por zona</h3>
       <div style="position:relative;height:260px;">
-        <canvas id="rwChartZona" role="img" aria-label="Porcentaje de canje por zona"></canvas>
+        <canvas id="rwChartZona" role="img" aria-label="Porcentaje de tickets registrados por zona"></canvas>
       </div>
-      <div class="chart-insight">Entre paréntesis, las Alinfinitas registradas de cada zona. Compara siempre con ese volumen a la vista.</div>
+      <div class="chart-insight">Cada zona como parte del total de tickets registrados (suman 100%). Entre paréntesis, el número de tickets. No responde a los filtros de arriba.</div>
     </div>
   </div>
 
@@ -5404,29 +5404,22 @@ async function loadRRData() {
     const parc = datos.map(d => rwMesesParciales.has(d.mes));
     const ambito = rwFiltro.sucursal || rwFiltro.zona;
     document.getElementById('rwTituloEvo').textContent =
-      'Alinfinitas registradas y canjeadas por mes' + (ambito ? ' — ' + ambito : '');
+      'Tickets registrados por mes' + (ambito ? ' — ' + ambito : '');
     rwDestruir('evo');
     rwCharts.evo = new Chart(document.getElementById('rwChartEvo'), {
       type: 'bar',
       data: {
-        labels: datos.map(d => [rwMesLabel(d.mes), rwFp(rwPct(d.cc, d.reg))]),
+        labels: datos.map(d => rwMesLabel(d.mes)),
         datasets: [
-          { label: 'Registradas en tickets', data: datos.map(d => d.reg), borderRadius: 3,
-            backgroundColor: parc.map(p => p ? 'rgba(230,57,70,0.35)' : RW_COLOR_REG) },
-          { label: 'Canjeadas', data: datos.map(d => d.cc), borderRadius: 3,
-            backgroundColor: parc.map(p => p ? 'rgba(42,157,143,0.35)' : RW_COLOR_CANJE) }
+          { label: 'Tickets registrados', data: datos.map(d => d.t), borderRadius: 3,
+            backgroundColor: parc.map(p => p ? 'rgba(230,57,70,0.35)' : RW_COLOR_REG) }
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-          tooltip: { callbacks: { afterBody: items => {
-            const i = items[0].dataIndex, d = datos[i];
-            const l = ['% de canje: ' + rwFp(rwPct(d.cc, d.reg)), 'Tickets: ' + rwFmt(d.t)];
-            if (parc[i]) l.push('Mes en curso: puede cambiar');
-            return l;
-          } } }
+          legend: { display: false },
+          tooltip: { callbacks: { afterBody: items => parc[items[0].dataIndex] ? ['Mes en curso: puede cambiar'] : [] } }
         },
         scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
       }
@@ -5452,24 +5445,22 @@ async function loadRRData() {
   
   function rwRenderZonas() {
     const porZona = {};
-    rwSucMes.forEach(r => {
-      const z = porZona[r.zona] = porZona[r.zona] || { reg: 0, cc: 0 };
-      z.reg += r.reg; z.cc += r.cc;
-    });
-    const lista = Object.keys(porZona).map(z => ({ zona: z, reg: porZona[z].reg, cc: porZona[z].cc,
-      p: rwPct(porZona[z].cc, porZona[z].reg) || 0 })).sort((a, b) => b.p - a.p);
+    rwSucMes.forEach(r => { porZona[r.zona] = (porZona[r.zona] || 0) + r.t; });
+    const total = Object.keys(porZona).reduce((a, z) => a + porZona[z], 0);
+    const lista = Object.keys(porZona).map(z => ({ zona: z, t: porZona[z], p: rwPct(porZona[z], total) || 0 }))
+      .sort((a, b) => b.p - a.p);
     rwDestruir('zona');
     rwCharts.zona = new Chart(document.getElementById('rwChartZona'), {
       type: 'bar',
       data: {
-        labels: lista.map(z => `${z.zona} (${rwFmt(z.reg)})`),
-        datasets: [{ label: '% de canje', data: lista.map(z => +z.p.toFixed(1)), borderRadius: 3,
+        labels: lista.map(z => `${z.zona} (${rwFmt(z.t)})`),
+        datasets: [{ label: '% de tickets registrados', data: lista.map(z => +z.p.toFixed(1)), borderRadius: 3,
           backgroundColor: lista.map(z => rwColorZona(z.zona)) }]
       },
       options: {
         responsive: true, maintainAspectRatio: false, indexAxis: 'y',
         plugins: { legend: { display: false },
-          tooltip: { callbacks: { label: c => `${lista[c.dataIndex].p.toFixed(1)}% · ${rwFmt(lista[c.dataIndex].cc)} de ${rwFmt(lista[c.dataIndex].reg)} Alinfinitas` } } },
+          tooltip: { callbacks: { label: c => `${lista[c.dataIndex].p.toFixed(1)}% · ${rwFmt(lista[c.dataIndex].t)} de ${rwFmt(total)} tickets` } } },
         scales: { x: { beginAtZero: true, ticks: { callback: v => v + '%' } } }
       }
     });
