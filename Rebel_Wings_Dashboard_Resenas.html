@@ -1100,6 +1100,16 @@
     .rw-na{background:#fff8ec;border:1px dashed #e9a23b;border-radius:10px;padding:14px 16px;margin-top:18px;}
     .rw-na h3{margin:0 0 4px;font-size:15px;color:#8a5a00;}
     .rw-bar{display:inline-block;height:6px;border-radius:3px;background:#2a9d8f;vertical-align:middle;margin-right:8px;}
+    .rw-fun{display:grid;gap:10px;margin-top:6px;}
+    .rw-fun-row{display:grid;grid-template-columns:170px 1fr 150px;gap:12px;align-items:center;}
+    .rw-fun-lab{font-size:13px;font-weight:600;color:#333;}
+    .rw-fun-lab small{display:block;font-weight:400;color:#999;font-size:11px;}
+    .rw-fun-track{background:#f3f3f3;border-radius:8px;height:34px;overflow:hidden;}
+    .rw-fun-fill{height:100%;border-radius:8px;display:flex;align-items:center;padding-left:10px;color:#fff;font-weight:700;font-size:13px;min-width:44px;box-sizing:border-box;}
+    .rw-fun-pct{font-size:13px;text-align:right;color:#333;}
+    .rw-fun-pct small{display:block;color:#999;font-size:11px;}
+    .rw-fun-pend{border:1px dashed #ccc;background:#fafafa;color:#999;font-size:12px;border-radius:8px;height:34px;display:flex;align-items:center;padding-left:10px;}
+    @media (max-width:640px){.rw-fun-row{grid-template-columns:1fr;gap:4px;}.rw-fun-pct{text-align:left;}}
   </style>
 
   <div id="rwAviso"></div>
@@ -1114,6 +1124,19 @@
       <select id="rwSucursal"><option value="">Todas las sucursales</option></select>
     </div>
     <span class="rw-fresh" id="rwFrescura"></span>
+  </div>
+
+  <div class="section" id="rwEmbudoSec">
+    <h2>Embudo del programa</h2>
+    <div class="controls" style="margin-bottom:6px;">
+      <div class="control-group">
+        <label for="rwEmbMes">Mes de registro:</label>
+        <select id="rwEmbMes"><option value="">Acumulado (todos los meses)</option></select>
+      </div>
+    </div>
+    <p class="rw-sub" id="rwEmbSub"></p>
+    <div class="rw-fun" id="rwEmbudo"><div class="loading">Cargando embudo…</div></div>
+    <p class="rw-sub" style="margin:10px 0 0;">Cada etapa se mide sobre la base (100%). El embudo cuenta personas por su mes de registro y no se filtra por zona ni sucursal, porque un registro no pertenece a una sucursal.</p>
   </div>
 
   <div class="kpi-grid" id="rwKpis">
@@ -1201,8 +1224,8 @@
       <ul>
         <li>Los meses recientes tienen un % de canje provisional: un ticket de este mes todavía puede canjearse.</li>
         <li>Se incluyen todos los tickets registrados, incluso los que llegaron fuera de la ventana de 48 h.</li>
-        <li>Las encuestas sin sucursal cuentan en los totales de encuestas, pero no en ningún ranking por sucursal.</li>
-        <li>El desglose de encuestas por sucursal y las alertas de calificaciones bajas se conectan en una siguiente etapa.</li>
+        <li>Las encuestas sin sucursal (NA) cuentan en los totales y se muestran aparte; no entran en ningún ranking por sucursal.</li>
+        <li>El desglose por sucursal está en la sección "Encuestas por sucursal". Las alertas automáticas por correo para calificaciones bajas se conectan en una siguiente etapa.</li>
       </ul>
     </div>
   </div>
@@ -2914,9 +2937,6 @@ async function loadRRData() {
     'CDMX-Centro': '#2a9d8f',
     'CDMX-Oriente': '#e9c46a',
     'CDMX-Sur': '#457b9d',
-    'Querétaro-Oriente': '#9b5de5',
-    'Querétaro-Poniente': '#f77f00',
-    // Nombres anteriores (2 nov 2026): se conservan por si quedan filas históricas sin migrar.
     'Querétaro-Norte': '#9b5de5',
     'Querétaro-Sur': '#f77f00',
     'Zona San Luis': '#f4a261',
@@ -4982,6 +5002,8 @@ async function loadRRData() {
   let rwEncSucOk = false;
   let rwUsrMes = [];            // RR_Usuarios_Mes normalizada
   let rwControl = {};           // RR_Control (clave -> valor)
+  let rwEmbudo = [];            // RR_Embudo_Mes normalizada
+  let rwEmbudoOk = false;
   let rwMesesParciales = new Set();
   let rwCharts = {};
   let rwEventos = false;
@@ -5129,6 +5151,20 @@ async function loadRRData() {
         avisos.push('No se pudo leer RR_Encuestas_Sucursal_Mes: la tabla de encuestas por sucursal no se muestra.');
       }
 
+      // Opcional: embudo. Si falla, el resto del tab sigue.
+      rwEmbudo = []; rwEmbudoOk = false;
+      try {
+        const em = await rwLeerHoja('RR_Embudo_Mes');
+        rwExigir(em, 'RR_Embudo_Mes', ['mes', 'registrados', 'con_ticket', 'con_encuesta']);
+        rwEmbudo = em.map(r => ({
+          mes: rwMesKey(r.mes), reg: rwNum(r.registrados), tk: rwNum(r.con_ticket), enc: rwNum(r.con_encuesta)
+        })).filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
+        rwEmbudoOk = rwEmbudo.length > 0;
+      } catch (e) {
+        console.warn('Rebel Rewards: RR_Embudo_Mes no disponible.', e);
+        avisos.push('No se pudo leer RR_Embudo_Mes: el embudo no se muestra.');
+      }
+
       rwUsrMes = usr.map(r => ({ mes: rwMesKey(r.mes), nuevos: rwNum(r.nuevos) }))
         .filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
   
@@ -5197,6 +5233,7 @@ async function loadRRData() {
       rwRenderTodo();
     });
     document.getElementById('rwMin').addEventListener('change', rwRenderRanking);
+    document.getElementById('rwEmbMes').addEventListener('change', rwRenderEmbudo);
     document.getElementById('rwEncPeriodo').addEventListener('change', rwRenderEncuestasSuc);
     const cuerpo = document.getElementById('rwRankBody');
     const elegir = fila => {
@@ -5230,6 +5267,7 @@ async function loadRRData() {
   
   // ---------- render ----------
   function rwRenderTodo() {
+    rwRenderEmbudo();
     rwRenderKpis();
     rwRenderEvolucion();
     rwRenderUsuarios();
@@ -5239,6 +5277,45 @@ async function loadRRData() {
     rwRenderEncuestas();
   }
   
+  // ---------- embudo ----------
+  function rwRenderEmbudo() {
+    const cont = document.getElementById('rwEmbudo'), sel = document.getElementById('rwEmbMes');
+    const sub = document.getElementById('rwEmbSub');
+    if (!rwEmbudoOk) {
+      cont.innerHTML = '<div class="rw-fun-pend" style="padding:10px;">Embudo sin datos todavía.</div>';
+      sub.textContent = '';
+      return;
+    }
+    if (sel.options.length <= 1) {
+      rwEmbudo.forEach(r => {
+        const o = document.createElement('option');
+        o.value = r.mes; o.textContent = rwMesLabel(r.mes);
+        sel.appendChild(o);
+      });
+    }
+    const mes = sel.value;
+    const filas = mes ? rwEmbudo.filter(r => r.mes === mes) : rwEmbudo;
+    const sum = k => filas.reduce((s, r) => s + (r[k] || 0), 0);
+    const etapas = [
+      { n: 'Registrados', d: 'Se dieron de alta en el programa', v: sum('reg'), c: '#e63946' },
+      { n: 'Con ticket registrado', d: 'Al menos un ticket con Alinfinitas', v: sum('tk'), c: '#f4a261' },
+      { n: 'Con encuesta respondida', d: 'Contestaron la encuesta post-canje', v: sum('enc'), c: '#2a9d8f' }
+    ];
+    const base = etapas[0].v;
+    let previo = null;
+    cont.innerHTML = etapas.map(e => {
+      const p = rwPct(e.v, base);
+      const paso = (previo !== null) ? rwPct(e.v, previo) : null;
+      previo = e.v;
+      return `<div class="rw-fun-row"><div class="rw-fun-lab">${e.n}<small>${e.d}</small></div>` +
+        `<div class="rw-fun-track"><div class="rw-fun-fill" style="width:${Math.max(p || 0, 0).toFixed(1)}%;background:${e.c};">${rwFmt(e.v)}</div></div>` +
+        `<div class="rw-fun-pct">${rwFp(p)} de la base${paso !== null ? `<small>${rwFp(paso)} de la etapa anterior</small>` : ''}</div></div>`;
+    }).join('');
+    sub.textContent = (mes ? 'Registrados en ' + rwMesLabel(mes) : 'Acumulado de todos los registros') +
+      '. Base: Registrados (100%).';
+    if (mes && rwMesesParciales.has(mes)) sub.textContent += ' El mes está en curso y puede cambiar.';
+  }
+
   function rwRenderKpis() {
     let t = 0, reg = 0, cc = 0;
     rwFiltradas().forEach(r => { t += r.t; reg += r.reg; cc += r.cc; });
