@@ -1182,31 +1182,6 @@
   </div>
 
   <div class="section">
-    <h2>📍 % de canje por sucursal</h2>
-    <p class="rw-sub">Acumulado desde el arranque del programa. Toca una sucursal para ver su evolución arriba.</p>
-    <div class="controls" style="margin-bottom:12px;">
-      <div class="control-group">
-        <label for="rwMin">Mostrar sucursales con al menos:</label>
-        <select id="rwMin">
-          <option value="0">0 Alinfinitas</option>
-          <option value="30" selected>30 Alinfinitas</option>
-          <option value="100">100 Alinfinitas</option>
-          <option value="300">300 Alinfinitas</option>
-        </select>
-      </div>
-      <span class="rw-fresh" id="rwRankCount"></span>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="rw-table rw-click">
-        <thead>
-          <tr><th>Sucursal</th><th>Zona</th><th>Tickets</th><th>Alinf. registradas</th><th>Canjeadas</th><th>% de canje</th></tr>
-        </thead>
-        <tbody id="rwRankBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="section">
     <h2>🏪 Encuestas por sucursal</h2>
     <p class="rw-sub">Calificaciones menores a 4 se marcan en rojo (solo con 5 o más respuestas). Respeta los filtros de zona y sucursal de arriba. Ordenado de menor a mayor atención.</p>
     <div class="controls" style="margin-bottom:12px;">
@@ -5265,20 +5240,9 @@ async function loadRRData() {
       rwFiltro.sucursal = e.target.value;
       rwRenderTodo();
     });
-    document.getElementById('rwMin').addEventListener('change', rwRenderRanking);
     document.getElementById('rwEmbMes').addEventListener('change', rwRenderEmbudo);
     document.getElementById('rwRevMes').addEventListener('change', rwRenderRevision);
     document.getElementById('rwEncPeriodo').addEventListener('change', rwRenderEncuestasSuc);
-    const cuerpo = document.getElementById('rwRankBody');
-    const elegir = fila => {
-      if (!fila) return;
-      const n = fila.dataset.n;
-      rwFiltro.sucursal = (rwFiltro.sucursal === n) ? '' : n;
-      document.getElementById('rwSucursal').value = rwFiltro.sucursal;
-      rwRenderTodo();
-    };
-    cuerpo.addEventListener('click', e => elegir(e.target.closest('tr')));
-    cuerpo.addEventListener('keydown', e => { if (e.key === 'Enter') elegir(e.target.closest('tr')); });
   }
   
   // ---------- cálculos ----------
@@ -5306,7 +5270,6 @@ async function loadRRData() {
     rwRenderEvolucion();
     rwRenderUsuarios();
     rwRenderZonas();
-    rwRenderRanking();
     rwRenderEncuestasSuc();
     rwRenderEncuestas();
   }
@@ -5464,31 +5427,6 @@ async function loadRRData() {
         scales: { x: { beginAtZero: true, ticks: { callback: v => v + '%' } } }
       }
     });
-  }
-  
-  function rwRenderRanking() {
-    const min = Number(document.getElementById('rwMin').value) || 0;
-    const por = {};
-    rwSucMes.filter(r => !rwFiltro.zona || r.zona === rwFiltro.zona).forEach(r => {
-      const s = por[r.nombre] = por[r.nombre] || { nombre: r.nombre, zona: r.zona, t: 0, reg: 0, cc: 0 };
-      s.t += r.t; s.reg += r.reg; s.cc += r.cc;
-    });
-    const todas = Object.keys(por).map(k => por[k]);
-    const filas = todas.filter(s => s.reg >= min)
-      .map(s => Object.assign(s, { p: rwPct(s.cc, s.reg) || 0 }))
-      .sort((a, b) => b.p - a.p);
-    const mx = Math.max(1, ...filas.map(s => s.p));
-    document.getElementById('rwRankCount').textContent = `${filas.length} de ${todas.length} sucursales`;
-    document.getElementById('rwRankBody').innerHTML = filas.length ? filas.map(s => `
-      <tr data-n="${rwEsc(s.nombre)}" tabindex="0" class="${s.nombre === rwFiltro.sucursal ? 'sel' : ''}">
-        <td style="font-weight:500;">${rwEsc(s.nombre)}</td>
-        <td style="color:#666;">${rwEsc(s.zona)}</td>
-        <td>${rwFmt(s.t)}</td>
-        <td>${rwFmt(s.reg)}</td>
-        <td>${rwFmt(s.cc)}</td>
-        <td><span class="rw-bar" style="width:${Math.max(2, 60 * s.p / mx)}px;"></span><strong>${rwFp(s.p)}</strong></td>
-      </tr>`).join('')
-      : '<tr><td colspan="6" style="text-align:center;color:#999;padding:16px;">Sin sucursales con ese volumen.</td></tr>';
   }
   
   function rwCeldaEnc(valor, n, esNota) {
