@@ -1139,8 +1139,21 @@
     <p class="rw-sub" style="margin:10px 0 0;">Cada etapa se mide sobre la base (100%). El embudo cuenta personas por su mes de registro y no se filtra por zona ni sucursal, porque un registro no pertenece a una sucursal.</p>
   </div>
 
-  <div class="kpi-grid" id="rwKpis">
-    <div class="loading">Cargando Rebel Rewards…</div>
+  <div class="section" id="rwRevSec">
+    <h2>Canjes por usuario y señales de revisión</h2>
+    <div class="controls" style="margin-bottom:6px;">
+      <div class="control-group">
+        <label for="rwRevMes">Mes del primer canje:</label>
+        <select id="rwRevMes"><option value="">Acumulado (todos los meses)</option></select>
+      </div>
+    </div>
+    <p class="rw-sub" id="rwRevSub"></p>
+    <div class="kpi-grid" id="rwRevKpis"><div class="loading">Cargando…</div></div>
+    <h3 style="font-size:14px;margin:18px 0 6px;color:#333;">Cuántos canjes tiene cada usuario</h3>
+    <div class="rw-fun" id="rwRevDist"></div>
+    <h3 style="font-size:14px;margin:18px 0 6px;color:#333;">Señales de revisión</h3>
+    <table class="rw-table"><thead><tr><th>Señal</th><th>Usuarios</th><th>% de los que canjearon</th></tr></thead><tbody id="rwRevBody"></tbody></table>
+    <p class="rw-sub" style="margin:10px 0 0;">Cada usuario cuenta en el mes de su primer canje, así que los meses suman el total sin duplicar. Un usuario puede tener varias señales a la vez; "Con alguna señal" lo cuenta una sola vez. Los conteos son una pista para revisar, no una sanción: el detalle de quién es cada usuario se consulta solo en Apps Script.</p>
   </div>
 
   <div class="section">
@@ -5004,6 +5017,8 @@ async function loadRRData() {
   let rwControl = {};           // RR_Control (clave -> valor)
   let rwEmbudo = [];            // RR_Embudo_Mes normalizada
   let rwEmbudoOk = false;
+  let rwRevision = [];
+  let rwRevisionOk = false;
   let rwMesesParciales = new Set();
   let rwCharts = {};
   let rwEventos = false;
@@ -5165,6 +5180,24 @@ async function loadRRData() {
         avisos.push('No se pudo leer RR_Embudo_Mes: el embudo no se muestra.');
       }
 
+      // Opcional: revisión de canjes. Si falla, el resto del tab sigue.
+      rwRevision = []; rwRevisionOk = false;
+      try {
+        const rv = await rwLeerHoja('RR_Revision_Mes');
+        rwExigir(rv, 'RR_Revision_Mes', ['mes', 'usuarios_con_canje', 'canjes', 'u_1', 'u_2', 'u_3_4', 'u_5_9', 'u_10_mas',
+          's_7d', 's_mismo_dia', 's_24h', 's_multisucursal', 's_10_mas', 'con_alguna_senal']);
+        rwRevision = rv.map(r => ({
+          mes: rwMesKey(r.mes), u: rwNum(r.usuarios_con_canje), c: rwNum(r.canjes),
+          d: [rwNum(r.u_1), rwNum(r.u_2), rwNum(r.u_3_4), rwNum(r.u_5_9), rwNum(r.u_10_mas)],
+          s7: rwNum(r.s_7d), sd: rwNum(r.s_mismo_dia), s24: rwNum(r.s_24h), sm: rwNum(r.s_multisucursal),
+          s10: rwNum(r.s_10_mas), al: rwNum(r.con_alguna_senal)
+        })).filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
+        rwRevisionOk = rwRevision.length > 0;
+      } catch (e) {
+        console.warn('Rebel Rewards: RR_Revision_Mes no disponible.', e);
+        avisos.push('No se pudo leer RR_Revision_Mes: la sección de canjes por usuario no se muestra.');
+      }
+
       rwUsrMes = usr.map(r => ({ mes: rwMesKey(r.mes), nuevos: rwNum(r.nuevos) }))
         .filter(r => r.mes).sort((a, b) => a.mes.localeCompare(b.mes));
   
@@ -5178,7 +5211,7 @@ async function loadRRData() {
       rwRenderFrescura();
     } catch (error) {
       console.error('Error cargando Rebel Rewards:', error);
-      document.getElementById('rwKpis').innerHTML = '';
+      document.getElementById('rwEmbudo').innerHTML = '';
       document.getElementById('rwAviso').innerHTML =
         `<div class="error">No se pudo cargar Rebel Rewards: ${rwEsc(error.message)}</div>`;
     }
@@ -5234,6 +5267,7 @@ async function loadRRData() {
     });
     document.getElementById('rwMin').addEventListener('change', rwRenderRanking);
     document.getElementById('rwEmbMes').addEventListener('change', rwRenderEmbudo);
+    document.getElementById('rwRevMes').addEventListener('change', rwRenderRevision);
     document.getElementById('rwEncPeriodo').addEventListener('change', rwRenderEncuestasSuc);
     const cuerpo = document.getElementById('rwRankBody');
     const elegir = fila => {
@@ -5268,7 +5302,7 @@ async function loadRRData() {
   // ---------- render ----------
   function rwRenderTodo() {
     rwRenderEmbudo();
-    rwRenderKpis();
+    rwRenderRevision();
     rwRenderEvolucion();
     rwRenderUsuarios();
     rwRenderZonas();
@@ -5316,24 +5350,55 @@ async function loadRRData() {
     if (mes && rwMesesParciales.has(mes)) sub.textContent += ' El mes está en curso y puede cambiar.';
   }
 
-  function rwRenderKpis() {
-    let t = 0, reg = 0, cc = 0;
-    rwFiltradas().forEach(r => { t += r.t; reg += r.reg; cc += r.cc; });
-    const sinFiltro = !rwFiltro.zona && !rwFiltro.sucursal;
-    const usuarios = rwUsrMes.reduce((s, r) => s + r.nuevos, 0);
-    const primerMes = rwSucMes.length ? rwMesLabel(rwSucMes.map(r => r.mes).sort()[0]) : '';
-    const tarjetas = [
-      ['Tickets registrados', rwFmt(t), 'Desde ' + primerMes],
-      ['Alinfinitas registradas', rwFmt(reg), 'En tickets'],
-      ['Alinfinitas canjeadas', rwFmt(cc), 'Redenciones'],
-      ['% de canje', rwFp(rwPct(cc, reg)), 'Canjeadas ÷ registradas'],
-      ['Usuarios registrados', sinFiltro ? rwFmt(usuarios) : '—', sinFiltro ? 'Todo el programa' : 'No se separa por sucursal']
+  // ---------- canjes por usuario y señales de revisión ----------
+  function rwRenderRevision() {
+    const kp = document.getElementById('rwRevKpis'), dist = document.getElementById('rwRevDist');
+    const cuerpo = document.getElementById('rwRevBody'), sel = document.getElementById('rwRevMes');
+    const sub = document.getElementById('rwRevSub');
+    if (!rwRevisionOk) {
+      kp.innerHTML = '<div class="rw-fun-pend" style="padding:10px;">Sin datos todavía.</div>';
+      dist.innerHTML = ''; cuerpo.innerHTML = ''; sub.textContent = '';
+      return;
+    }
+    if (sel.options.length <= 1) {
+      rwRevision.forEach(r => {
+        const o = document.createElement('option');
+        o.value = r.mes; o.textContent = rwMesLabel(r.mes);
+        sel.appendChild(o);
+      });
+    }
+    const mes = sel.value;
+    const filas = mes ? rwRevision.filter(r => r.mes === mes) : rwRevision;
+    const sum = k => filas.reduce((s, r) => s + r[k], 0);
+    const u = sum('u'), c = sum('c'), al = sum('al');
+    const d = [0, 1, 2, 3, 4].map(i => filas.reduce((s, r) => s + r.d[i], 0));
+    kp.innerHTML = [
+      ['Usuarios que han canjeado', rwFmt(u), 'Con al menos un canje'],
+      ['Canjes por usuario', u ? (c / u).toFixed(2) : '—', rwFmt(c) + ' canjes en total'],
+      ['Con alguna señal de revisión', rwFmt(al), rwFp(rwPct(al, u)) + ' de los que canjearon']
+    ].map(t => `<div class="kpi-card"><div class="kpi-label">${t[0]}</div><div class="kpi-value">${t[1]}</div><div class="kpi-change">${t[2]}</div></div>`).join('');
+    const etiquetas = ['1 canje', '2 canjes', '3 a 4 canjes', '5 a 9 canjes', '10 o más canjes'];
+    const colores = ['#2a9d8f', '#8ab17d', '#f4a261', '#e76f51', '#e63946'];
+    const maxD = Math.max(...d, 1);
+    dist.innerHTML = etiquetas.map((e, i) => {
+      const p = rwPct(d[i], u);
+      return `<div class="rw-fun-row"><div class="rw-fun-lab">${e}</div>` +
+        `<div class="rw-fun-track"><div class="rw-fun-fill" style="width:${(100 * d[i] / maxD).toFixed(1)}%;background:${colores[i]};">${rwFmt(d[i])}</div></div>` +
+        `<div class="rw-fun-pct">${rwFp(p)}</div></div>`;
+    }).join('');
+    const sen = [
+      ['3 o más canjes en 7 días', sum('s7')],
+      ['2 o más canjes el mismo día', sum('sd')],
+      ['Dos canjes con menos de 12 horas de diferencia', sum('s24')],
+      ['Canjes en 2 o más sucursales el mismo día', sum('sm')],
+      ['10 o más canjes en total', sum('s10')]
     ];
-    document.getElementById('rwKpis').innerHTML = tarjetas.map(c =>
-      `<div class="kpi-card"><div class="kpi-label">${c[0]}</div><div class="kpi-value">${c[1]}</div><div class="kpi-change">${c[2]}</div></div>`
-    ).join('');
+    cuerpo.innerHTML = sen.map(x =>
+      `<tr><td>${x[0]}</td><td>${rwFmt(x[1])}</td><td>${rwFp(rwPct(x[1], u))}</td></tr>`).join('');
+    sub.textContent = (mes ? 'Usuarios cuyo primer canje fue en ' + rwMesLabel(mes) : 'Acumulado de todos los usuarios que han canjeado') +
+      '. No responde a los filtros de zona ni sucursal.';
   }
-  
+
   function rwRenderEvolucion() {
     const datos = rwPorMes(rwFiltradas());
     const parc = datos.map(d => rwMesesParciales.has(d.mes));
