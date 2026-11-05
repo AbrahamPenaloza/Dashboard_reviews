@@ -1153,7 +1153,7 @@
     <div class="rw-fun" id="rwRevDist"></div>
     <h3 style="font-size:14px;margin:18px 0 6px;color:#333;">Señales de revisión</h3>
     <table class="rw-table"><thead><tr><th>Señal</th><th>Usuarios</th><th>% de los que canjearon</th></tr></thead><tbody id="rwRevBody"></tbody></table>
-    <p class="rw-sub" style="margin:10px 0 0;">Cada usuario cuenta en el mes de su primer canje, así que los meses suman el total sin duplicar. Un usuario puede tener varias señales a la vez; "Con alguna señal" lo cuenta una sola vez. Los conteos son una pista para revisar, no una sanción: el detalle de quién es cada usuario se consulta solo en Apps Script.</p>
+    <p class="rw-sub" style="margin:10px 0 0;">Cada usuario cuenta en el mes de su primer canje, así que los meses suman el total sin duplicar. Un usuario puede tener varias señales a la vez; "Con posible actividad sospechosa" lo cuenta una sola vez. Los conteos son una pista para revisar, no una sanción: el detalle de quién es cada usuario se consulta solo en Apps Script.</p>
   </div>
 
   <div class="section">
@@ -5338,7 +5338,7 @@ async function loadRRData() {
     kp.innerHTML = [
       ['Usuarios que han canjeado', rwFmt(u), 'Con al menos un canje'],
       ['Canjes por usuario', u ? (c / u).toFixed(2) : '—', rwFmt(c) + ' canjes en total'],
-      ['Con alguna señal de revisión', rwFmt(al), rwFp(rwPct(al, u)) + ' de los que canjearon']
+      ['Con posible actividad sospechosa', rwFmt(al), rwFp(rwPct(al, u)) + ' de los que canjearon']
     ].map(t => `<div class="kpi-card"><div class="kpi-label">${t[0]}</div><div class="kpi-value">${t[1]}</div><div class="kpi-change">${t[2]}</div></div>`).join('');
     const etiquetas = ['1 canje', '2 canjes', '3 a 4 canjes', '5 a 9 canjes', '10 o más canjes'];
     const colores = ['#2a9d8f', '#8ab17d', '#f4a261', '#e76f51', '#e63946'];
