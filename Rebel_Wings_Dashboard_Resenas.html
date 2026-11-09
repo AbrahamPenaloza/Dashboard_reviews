@@ -2346,6 +2346,7 @@ async function loadRRData() {
       
       allData = rows;
       await Promise.all([loadReviewsData(), loadSucursalesData()]);
+      verificarIntegridadResenas();
       populateKpiLocationFilter();
       updateDashboard();
       updateTopSection();
@@ -2357,6 +2358,25 @@ async function loadRRData() {
     }
   }
   
+  // Si Google devuelve una respuesta parcial (o la hoja se está reescribiendo),
+  // el dashboard dejaría de mostrar la mayoría de las sucursales sin avisar.
+  // Compara contra la lista de Sucursales y muestra un aviso con Reintentar.
+  function verificarIntegridadResenas() {
+    const esperadas = Object.keys(mapaRatingOficial || {}).length;
+    if (esperadas < 10 || !reviewsData.length) return;
+    const lim = new Date(); lim.setDate(lim.getDate() - 30);
+    const todas = new Set(), recientes = new Set();
+    reviewsData.forEach(r => {
+      const n = r['Nombre de sucursal']; if (!n) return;
+      todas.add(n);
+      const d = parseFecha(r.Fecha); if (d && d >= lim) recientes.add(n);
+    });
+    if (todas.size < esperadas * 0.8 || recientes.size < esperadas * 0.6) {
+      avisarCarga('Reseñas (datos incompletos)', new Error(
+        'Llegaron reseñas de ' + todas.size + ' de ' + esperadas + ' sucursales (' + recientes.size +
+        ' con reseñas en los últimos 30 días). Probablemente Google devolvió una respuesta parcial: recarga con Ctrl+Shift+R. Si persiste, avísale a Abraham.'));
+    }
+  }
   async function loadReviewsData(force) {
     try {
       const text = await gvizTexto(RESENAS_URL, force);
@@ -4787,7 +4807,11 @@ async function loadRRData() {
     if (encontrada) {
       renderContactoEncontrado(encontrada, folio);
     } else {
-      renderContactoNoEncontrado(folio);
+      // Respaldo: reseñas de 1-2★ sin texto reciben folio publicado pero no generan
+      // queja. Si el folio existe en Reseñas, se muestra su contexto y se precarga el formulario.
+      const resena = (typeof reviewsData !== 'undefined' ? reviewsData : []).find(
+        r => String(r['Folio_Respuesta'] || '').trim().toUpperCase() === folio);
+      renderContactoNoEncontrado(folio, resena || null);
     }
   }
 
@@ -4843,14 +4867,28 @@ async function loadRRData() {
     `;
   }
 
-  function renderContactoNoEncontrado(folio) {
+  function renderContactoNoEncontrado(folio, resena) {
     const container = document.getElementById('contactoResultado');
     const mapaZona = window._quejasMapaZona || {};
     const sucursalesUnicas = Object.keys(mapaZona).filter(Boolean).sort();
 
+    // Contexto si el folio viene de una reseña de Google sin texto (sin queja registrada).
+    let avisoResena = '', sucPre = '', descPre = '', prioPre = 'Media', tituloAviso = '⚠ Folio no encontrado — puedes registrarlo como queja nueva';
+    if (resena) {
+      const f = parseFechaFlexible(resena['Fecha']);
+      const fTxt = f ? f.toLocaleDateString('es-MX') : '';
+      const est = Number(resena['Calificación']) || '';
+      sucPre = String(resena['Nombre de sucursal'] || '').trim();
+      prioPre = (est && est <= 1) ? 'Alta' : 'Media';
+      descPre = `Folio original ${folio}: reseña de Google de ${est}★ sin texto (${fTxt}) en ${sucPre}. El cliente contactó por redes.`;
+      tituloAviso = '⚠ Este folio es de una reseña de Google sin texto — no tenía queja registrada';
+      avisoResena = `<div class="contacto-preview"><strong>${esc(sucPre)}</strong> · ${esc(fTxt)} · ${esc(String(est))}★ · sin comentario escrito<br>Al registrar el contacto se creará la queja de seguimiento (con folio nuevo; el folio original queda anotado en la descripción).</div>`;
+    }
+
     container.innerHTML = `
       <div class="contacto-notfound-card">
-        <div class="contacto-notfound-title">⚠ Folio no encontrado — puedes registrarlo como queja nueva</div>
+        <div class="contacto-notfound-title">${tituloAviso}</div>
+        ${avisoResena}
         <div class="contacto-form-grid">
           <div>
             <label>Tu nombre</label>
@@ -4869,7 +4907,7 @@ async function loadRRData() {
             <label>Sucursal</label>
             <select id="contactoNuevoSucursal" onchange="autocompletarZonaContacto()">
               <option value="">Selecciona una sucursal…</option>
-              ${sucursalesUnicas.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+              ${sucursalesUnicas.map(s => `<option value="${esc(s)}"${s === sucPre ? ' selected' : ''}>${esc(s)}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -4904,12 +4942,17 @@ async function loadRRData() {
         <div class="contacto-form-grid full">
           <div>
             <label>Descripción de la queja / datos de contacto</label>
-            <textarea id="contactoNuevoDescripcion" placeholder="Detalle del mensaje y datos de contacto del cliente"></textarea>
+            <textarea id="contactoNuevoDescripcion" placeholder="Detalle del mensaje y datos de contacto del cliente">${esc(descPre)}</textarea>
           </div>
         </div>
         <button class="btn-segu proceso" data-folio="${esc(folio)}" onclick="enviarContactoCrear(this.dataset.folio)">Crear queja nueva</button>
       </div>
     `;
+    if (resena) {
+      autocompletarZonaContacto();
+      const selP = document.getElementById('contactoNuevoPrioridad');
+      if (selP) selP.value = prioPre;
+    }
   }
 
   async function enviarContactoEnlazar(quejaId, folio) {
