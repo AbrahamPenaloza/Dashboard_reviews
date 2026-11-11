@@ -1321,11 +1321,42 @@
   // "Cualquier persona" sin perder protección real: la protección la da
   // el token, no la sesión.
   const APROBACION_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbw53TWdQHaMB0zOK7PskfRdbywlRvUR9g6r_LxsUmVCu_kz6X8qPxn5x8GKH1aUaMlR/exec';
-  // Token simple compartido con doPost en Apps Script. Visible en el código
-  // fuente público del dashboard — no es secreto real, es una salvaguarda
-  // contra clics accidentales, aceptado como riesgo bajo dado que aprobar
-  // no equivale a publicar (la publicación sigue siendo manual).
-  const APROBACION_TOKEN = 'dIylfdfeWhfzs5WZJIJftyIQ3q59K5Ps';
+  // Acceso por CLAVE PERSONAL (v10). Ya no hay ningún secreto en este archivo:
+  // la clave la escribe cada persona una vez y se guarda solo en su navegador.
+  // El servidor (Apps Script) valida la clave, el rol y registra quién hizo
+  // cada acción. Quien no tiene clave puede ver el dashboard pero no actuar.
+  const APROBACION_TOKEN = '';
+  (function () {
+    const _fetch = window.fetch.bind(window);
+    const CLAVE_LS = 'rw_clave_acceso';
+    function respuestaLocal(msg) {
+      return new Response(JSON.stringify({ ok: false, error: msg }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    window.rwCerrarSesion = function () {
+      try { localStorage.removeItem(CLAVE_LS); } catch (e) {}
+      alert('Sesión cerrada en este navegador.');
+    };
+    window.fetch = async function (url, opts) {
+      const esWebApp = typeof url === 'string' && url.indexOf('script.google.com/macros') !== -1;
+      if (!esWebApp || !opts || typeof opts.body !== 'string') return _fetch(url, opts);
+      let cuerpo;
+      try { cuerpo = JSON.parse(opts.body); } catch (e) { return _fetch(url, opts); }
+      let clave = '';
+      try { clave = localStorage.getItem(CLAVE_LS) || ''; } catch (e) {}
+      if (!clave) {
+        clave = (window.prompt('Escribe tu clave de acceso al dashboard (te la entregó el administrador):') || '').trim();
+        if (!clave) return respuestaLocal('Acción cancelada: se necesita tu clave de acceso.');
+      }
+      cuerpo.token = clave;
+      const resp = await _fetch(url, Object.assign({}, opts, { body: JSON.stringify(cuerpo) }));
+      try {
+        const d = await resp.clone().json();
+        if (d && d.codigoError === 'CLAVE_INVALIDA') { try { localStorage.removeItem(CLAVE_LS); } catch (e) {} }
+        else if (d && (d.ok || d.codigoError === 'SIN_PERMISO')) { try { localStorage.setItem(CLAVE_LS, clave); } catch (e) {} }
+      } catch (e) {}
+      return resp;
+    };
+  })();
   
 
   // Datos de la pestaña "Quejas" (folios, Estatus, asignación por zona) —
